@@ -330,11 +330,11 @@ import os
 
 load_dotenv()
 
-my_api = os.getenv('API_KEY')
+my_api = st.secrets["OPENAI_API_KEY"]
 
 print(my_api)
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", my_api))
+client = OpenAI(api_key=my_api)
 def get_ai_response(answers):
     completion = client.chat.completions.create(
         model="ft:gpt-4o-2024-08-06:personal::An4sVvnb",

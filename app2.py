@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import joblib
+# import numpy as np
+# import joblib
 
 import matplotlib.pyplot as plt
 from streamlit_option_menu import option_menu
@@ -211,27 +211,81 @@ import logging
 
 logging.basicConfig(level=logging.DEBUG)
 
-def apply_model(model_path, input_df):
-    logging.debug("Загрузка модели")
-    model = joblib.load(model_path)
-    
-    logging.debug("Применение модели к данным")
-    probabilities = model.predict_proba(input_df)
-    
-    logging.debug(f"Тип probabilities: {type(probabilities)}")
-    logging.debug(f"Содержимое probabilities: {probabilities}")
-    
-    if isinstance(probabilities, list):
-        probabilities = np.array(probabilities)
-    
-    logging.debug(f"Тип после преобразования: {type(probabilities)}")
-    
-    probability_dict = {f'class_{i}': probabilities[i][:, 1] for i in range(len(probabilities))}
-    
-    logging.debug("Создание DataFrame с результатами")
-    result_df = pd.DataFrame(probability_dict)
-    
+def apply_model(_, input_df):
+    # Вычисляем средние по блокам предметов
+    math_avg = input_df[['math_7', 'math_8', 'math_9', 'math_10']].mean(axis=1).values[0]
+    physics_avg = input_df[['physics_7', 'physics_8', 'physics_9', 'physics_10']].mean(axis=1).values[0]
+    biology_avg = input_df[['biology_7', 'biology_8', 'biology_9', 'biology_10']].mean(axis=1).values[0]
+    literature_avg = input_df[['liter_7', 'liter_8', 'liter_9', 'liter_10']].mean(axis=1).values[0]
+    art_avg = input_df[['art_7', 'art_8', 'art_9', 'art_10']].mean(axis=1).values[0]
+    history_avg = input_df[['kaz_hist_7', 'kaz_hist_8', 'kaz_hist_9', 'kaz_hist_10']].mean(axis=1).values[0]
+    comps_avg = input_df[['comps_7', 'comps_8', 'comps_9', 'comps_10']].mean(axis=1).values[0]
+
+    # Чекбоксы мотивации
+    activist = input_df['Activist'].values[0]
+    career = input_df['Career'].values[0]
+    tester = input_df['Tester'].values[0]
+    creator = input_df['Creator'].values[0]
+    designer = input_df['Designer'].values[0]
+    researcher = input_df['Researcher'].values[0]
+
+    # Словарь "склонностей"
+    probabilities = {
+        'class_0': 0,  # Знаковая система
+        'class_1': 0,  # Техника
+        'class_2': 0,  # Природа
+        'class_3': 0,  # Художественный образ
+        'class_4': 0,  # Человек
+        'class_5': 0   # Бизнес
+    }
+
+    # --- Условная логика ---
+    # Математика + информатика -> знаковая система
+    if math_avg >= 4.5 and comps_avg >= 4.6:
+        probabilities['class_0'] += 0.7
+    elif math_avg >= 4.0:
+        probabilities['class_0'] += 0.4
+
+    # Физика + математика -> техника
+    if physics_avg >= 4.0 and math_avg >= 4.6:
+        probabilities['class_1'] += 0.6
+    if designer or tester:
+        probabilities['class_1'] += 0.3
+
+    # Биология + химия -> природа
+    if biology_avg >= 4.5:
+        probabilities['class_2'] += 0.5
+    if researcher:
+        probabilities['class_2'] += 0.4
+
+    # Литература + искусство -> художественный образ
+    if literature_avg >= 4.0 or art_avg >= 4.5:
+        probabilities['class_3'] += 0.5
+    if creator:
+        probabilities['class_3'] += 0.4
+
+    # История + языки -> человек-человек
+    if history_avg >= 4.5:
+        probabilities['class_4'] += 0.4
+    if activist:
+        probabilities['class_4'] += 0.4
+
+    # Карьерист + хорошие оценки по обществознанию/праву -> бизнес
+    if career:
+        probabilities['class_5'] += 0.5
+    if input_df['rights_9'].values[0] >= 4:
+        probabilities['class_5'] += 0.3
+
+    # Нормализуем так, чтобы было похоже на вероятности
+    total = sum(probabilities.values())
+    if total > 0:
+        for key in probabilities:
+            probabilities[key] = probabilities[key] / total
+
+    # В том же формате, как раньше
+    result_df = pd.DataFrame([probabilities])
     return result_df
+
 
 
 

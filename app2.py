@@ -323,10 +323,8 @@ with tabs[0]:
 
 
 from openai import OpenAI
-import os
-
 from dotenv import load_dotenv
-import os
+
 
 load_dotenv()
 

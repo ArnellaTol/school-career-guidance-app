@@ -7,6 +7,4 @@ scikit-learn==1.5.2
 scipy==1.14.1
 joblib==1.4.2
 openai==1.59.3
-python-dotenv==1.0.1
-
 

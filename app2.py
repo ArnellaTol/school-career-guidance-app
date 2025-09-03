@@ -361,7 +361,7 @@ def display_results(df):
     # type_columns_ru - type_columns
     selected_types = [
         type_columns_ru[key] 
-        for key, value in adjusted_results.items() if value >= 60
+        for key, value in adjusted_results.items() if value >= 100
     ]
 
     st.write("**Наиболее подходящие типы профессиональной склонности, выведенные Дж. Холландом:**")

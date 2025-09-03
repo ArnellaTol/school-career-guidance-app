@@ -3,7 +3,7 @@ import pandas as pd
 # import numpy as np
 # import joblib
 
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 from streamlit_option_menu import option_menu
 
 st.set_page_config(
@@ -327,26 +327,35 @@ def adjust_probabilities(probabilities, thresholds):
     return adjusted_probs
 
 
+
+
 def display_results(df):
     results = {key: df[key].values[0] for key in df.columns}
     adjusted_results = adjust_probabilities(results, thresholds)
 
     # type_columns_ru - type_columns
-    selected_types = [type_columns_ru[key] for key, value in adjusted_results.items() if value >= 100]
+    selected_types = [
+        type_columns_ru[key] 
+        for key, value in adjusted_results.items() if value >= 60
+    ]
 
     st.write("**Наиболее подходящие типы профессиональной склонности, выведенные Дж. Холландом:**")
-    # st.write("**The most appropriate types of professional readiness, derived by L.N. Kabardova:**")
     for typ in selected_types:
         st.write(f"- {typ}")
 
     st.write("**Вероятности всех типов профессиональной склонности:**")
-    # st.write("**The probabilities of all types of professional readiness:**")
-    fig, ax = plt.subplots()
 
-    # type_columns_ru - type_columns
-    ax.pie(adjusted_results.values(), labels=[type_columns_ru[key] for key in adjusted_results.keys()], autopct='%1.1f%%')
-    ax.axis('equal')
-    st.pyplot(fig)
+    # Превратим словарь в DataFrame для отображения
+    chart_data = pd.DataFrame({
+        "Тип": [type_columns_ru[key] for key in adjusted_results.keys()],
+        "Вероятность": list(adjusted_results.values())
+    })
+
+    # Показываем таблицу
+    st.dataframe(chart_data, use_container_width=True)
+
+    # Дополнительно можно показать bar chart
+    st.bar_chart(chart_data.set_index("Тип"))
 
     
 

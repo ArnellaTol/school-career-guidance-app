@@ -1,6 +1,5 @@
 streamlit==1.40.1
 streamlit-option-menu==0.4.0
 pandas==2.2.2
-matplotlib==3.9.2
 openai==1.59.3
 

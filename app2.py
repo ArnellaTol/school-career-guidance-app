@@ -385,38 +385,51 @@ with tabs[0]:
         display_results(result_df)
 
 
-from openai import OpenAI
-from dotenv import load_dotenv
 
+import requests
+from dotenv import load_dotenv
 
 load_dotenv()
 
 my_api = st.secrets["OPENAI_API_KEY"]
 
-print(my_api)
-
-client = OpenAI(api_key=my_api)
 def get_ai_response(answers):
-    completion = client.chat.completions.create(
-        model="ft:gpt-4o-2024-08-06:personal::An4sVvnb",
-        messages=[
-        {"role": "system", "content": f"Assistant is an expert in career guidance. Assistant should answer in the same language as the one in which the user writes answers (could be russian, kazakh, english). User answers the following questions: 1. Какие профессии вас интересуют на данный момент? 2. Какие виды деятельности вам точно не интересны? 3. Без учета финансовых аспектов, какие виды деятельности или профессии вам нравятся? 4. Перечислите свои хобби и интересы: 5. Назовите ролевые модели, чей образ жизни и достижения вас вдохновляют. 6. Какие задачи придают вам энергии? 7. Какие задачи вас утомляют?"},
-        {"role": "user", "content": f"1. {answers[0]} 2. {answers[1]} 3. {answers[2]} 4. {answers[3]} 5. {answers[4]} 6. {answers[5]} 7. {answers[6]}"},
-        ]
-    )
-    print(completion.choices[0].message.content)
-    return completion.choices[0].message.content
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {my_api}",
+        "Content-Type": "application/json"
+    }
 
+    data = {
+        "model": "ft:gpt-4o-2024-08-06:personal::An4sVvnb",
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "Assistant is an expert in career guidance. Assistant should answer in the same language "
+                    "as the one in which the user writes answers (could be russian, kazakh, english). "
+                    "User answers the following questions: "
+                    "1. Какие профессии вас интересуют на данный момент? "
+                    "2. Какие виды деятельности вам точно не интересны? "
+                    "3. Без учета финансовых аспектов, какие виды деятельности или профессии вам нравятся? "
+                    "4. Перечислите свои хобби и интересы: "
+                    "5. Назовите ролевые модели, чей образ жизни и достижения вас вдохновляют. "
+                    "6. Какие задачи придают вам энергии? "
+                    "7. Какие задачи вас утомляют?"
+                )
+            },
+            {
+                "role": "user",
+                "content": f"1. {answers[0]} 2. {answers[1]} 3. {answers[2]} 4. {answers[3]} 5. {answers[4]} 6. {answers[5]} 7. {answers[6]}"
+            }
+        ],
+        "max_tokens": 500
+    }
 
-questions = [
-    "**1. What professions are you interested in at the moment?**",
-    "**2. What types of activities are you definitely not interested in?**",
-    "**3. Without considering financial aspects, what types of activities or professions do you like?**",
-    "**4. List your hobbies and interests:**",
-    "**5. Name role models whose lifestyles and achievements inspire you.**\n\n(This list may include famous personalities, characters from books, or your relatives and acquaintances. If you mention relatives or acquaintances, describe what achievements or personal qualities inspire you about them.)\n\nExamples:\n\n• Elon Musk — ambition and ability to achieve the impossible.\n\n• Hermione Granger — determination and curiosity.\n\n• Grandmother — always remains optimistic despite tough times.\n\n• Mathematics teacher — love for the subject and charisma.",
-    "**6. What tasks energize you?**\n\n(For example: solving mathematical problems, programming, drawing, reading fiction books, working with people, discussing ideas.)",
-    "**7. What tasks drain you?**\n\n(For example: performing routine tasks, working with numbers for long periods, monotonous reports, interacting with many people, etc.)"
-]
+    response = requests.post(url, headers=headers, json=data)
+    response.raise_for_status()  # выдаст ошибку если запрос не удался
+
+    return response.json()["choices"][0]["message"]["content"]
 
 
 questions_ru = [
@@ -424,24 +437,19 @@ questions_ru = [
     "**2. Какие виды деятельности вам точно не интересны?**",
     "**3. Без учета финансовых аспектов, какие виды деятельности или профессии вам нравятся?**",
     "**4. Перечислите свои хобби и интересы:**",
-    "**5. Назовите ролевые модели, чьи образы жизни и достижения вас вдохновляют.**\n\n(В этот список могут входить известные личности, персонажи из книг или ваши родственники и знакомые. Если вы упоминаете родственников или знакомых, опишите, какими достижениями или личными качествами они вас вдохновляют.)\n\nПримеры:\n\n• Илон Маск — амбициозность и способность добиваться невозможного.\n\n• Гермиона Грейнджер — целеустремленность и любознательность.\n\n• Бабушка — несмотря на тяжелые времена, всегда остается оптимистичной.\n\n• Учитель математики — любовь к своему предмету и харизма.",
-    "**6. Какие задачи придают вам энергии?**\n\n(Например: решение математических задач, программирование, рисование, чтение художественных книг, работа с людьми, обсуждение идей.)",
-    "**7. Какие задачи вас утомляют?**\n\n(Например: выполнение рутинных заданий, длительная работа с цифрами, монотонные отчеты, взаимодействие с большим количеством людей и пр.)"
+    "**5. Назовите ролевые модели, чьи образы жизни и достижения вас вдохновляют.**",
+    "**6. Какие задачи придают вам энергии?**",
+    "**7. Какие задачи вас утомляют?**"
 ]
-
 
 user_answers = []
 
 with tabs[1]:
-    for i, question in enumerate(questions_ru): #questions
-        answer = st.text_input(f"{question}", key=f"answer_{i}") 
+    for i, question in enumerate(questions_ru):
+        answer = st.text_input(f"{question}", key=f"answer_{i}")
         user_answers.append(answer)
-    
-    # if st.button("Get a response"):
+
     if st.button("Получить ответ"):
         ai_response = get_ai_response(user_answers)
-        # st.write("AI response:") 
         st.write("Ответ ИИ:")
         st.write(ai_response)
-    
-

@@ -310,7 +310,7 @@ def display_results(df):
 # st.header("Career guidance for students")
 st.header("Профориентация для школьников")
 # tabs = st.tabs(["School academic records", "Open questions"]) # , "Test ...(under development)"
-tabs = st.tabs(["Школьные оценки", "Открытые вопросы"]) # , "Тест ...(в разработке)"
+tabs = st.tabs(["Школьные оценки", "Открытые вопросы", "AI профориентатор"]) # , "Тест ...(в разработке)"
 
 with tabs[0]:
     st.write("**Выберите свой мотивационный тип (школьная анкета 7 класс):**")

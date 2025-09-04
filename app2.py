@@ -207,85 +207,6 @@ def save_to_dataframe(selected_checkboxes, input_values):
 
 
 
-# import logging
-
-# logging.basicConfig(level=logging.DEBUG)
-
-# def apply_model(_, input_df):
-#     # Вычисляем средние по блокам предметов
-#     math_avg = input_df[['math_7', 'math_8', 'math_9', 'math_10']].mean(axis=1).values[0]
-#     physics_avg = input_df[['physics_7', 'physics_8', 'physics_9', 'physics_10']].mean(axis=1).values[0]
-#     biology_avg = input_df[['biology_7', 'biology_8', 'biology_9', 'biology_10']].mean(axis=1).values[0]
-#     literature_avg = input_df[['liter_7', 'liter_8', 'liter_9', 'liter_10']].mean(axis=1).values[0]
-#     art_avg = input_df[['art_7', 'art_8', 'art_9', 'art_10']].mean(axis=1).values[0]
-#     history_avg = input_df[['kaz_hist_7', 'kaz_hist_8', 'kaz_hist_9', 'kaz_hist_10']].mean(axis=1).values[0]
-#     comps_avg = input_df[['comps_7', 'comps_8', 'comps_9', 'comps_10']].mean(axis=1).values[0]
-
-#     # Чекбоксы мотивации
-#     activist = input_df['Activist'].values[0]
-#     career = input_df['Career'].values[0]
-#     tester = input_df['Tester'].values[0]
-#     creator = input_df['Creator'].values[0]
-#     designer = input_df['Designer'].values[0]
-#     researcher = input_df['Researcher'].values[0]
-
-#     # Словарь "склонностей"
-#     probabilities = {
-#         'class_0': 0,  # Знаковая система
-#         'class_1': 0,  # Техника
-#         'class_2': 0,  # Природа
-#         'class_3': 0,  # Художественный образ
-#         'class_4': 0,  # Человек
-#         'class_5': 0   # Бизнес
-#     }
-
-#     # --- Условная логика ---
-#     # Математика + информатика -> знаковая система
-#     if math_avg >= 4.5 and comps_avg >= 4.6:
-#         probabilities['class_0'] += 0.7
-#     elif math_avg >= 4.0:
-#         probabilities['class_0'] += 0.4
-
-#     # Физика + математика -> техника
-#     if physics_avg >= 4.0 and math_avg >= 4.6:
-#         probabilities['class_1'] += 0.6
-#     if designer or tester:
-#         probabilities['class_1'] += 0.3
-
-#     # Биология + химия -> природа
-#     if biology_avg >= 4.5:
-#         probabilities['class_2'] += 0.5
-#     if researcher:
-#         probabilities['class_2'] += 0.4
-
-#     # Литература + искусство -> художественный образ
-#     if literature_avg >= 4.0 or art_avg >= 4.5:
-#         probabilities['class_3'] += 0.5
-#     if creator:
-#         probabilities['class_3'] += 0.4
-
-#     # История + языки -> человек-человек
-#     if history_avg >= 4.5:
-#         probabilities['class_4'] += 0.4
-#     if activist:
-#         probabilities['class_4'] += 0.4
-
-#     # Карьерист + хорошие оценки по обществознанию/праву -> бизнес
-#     if career:
-#         probabilities['class_5'] += 0.5
-#     if input_df['rights_9'].values[0] >= 4:
-#         probabilities['class_5'] += 0.3
-
-#     # Нормализуем так, чтобы было похоже на вероятности
-#     total = sum(probabilities.values())
-#     if total > 0:
-#         for key in probabilities:
-#             probabilities[key] = probabilities[key] / total
-
-#     # В том же формате, как раньше
-#     result_df = pd.DataFrame([probabilities])
-#     return result_df
-
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -478,3 +399,162 @@ with tabs[1]:
         ai_response = get_ai_response(user_answers)
         st.write("Ответ ИИ:")
         st.write(ai_response)
+
+
+import os
+import json
+import streamlit as st
+from huggingface_hub import InferenceClient, login
+from sentence_transformers import SentenceTransformer
+from annoy import AnnoyIndex
+
+
+@st.cache_data(show_spinner="Загрузка JSONL файлов...")
+def load_jsonl_files(folder_path):
+    all_records = []
+    for filename in os.listdir(folder_path):
+        if filename.endswith(".jsonl"):
+            file_path = os.path.join(folder_path, filename)
+            with open(file_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        record = json.loads(line)
+                        all_records.append(record)
+                    except json.JSONDecodeError:
+                        print(f"Ошибка при чтении файла: {filename}")
+    return all_records
+
+
+rag_data = load_jsonl_files("./jsonl datafiles")
+
+
+def login_hf():
+    if not os.environ.get("HF_TOKEN"):
+        login(token=st.secrets["HF_TOKEN"])
+
+
+login_hf()
+
+
+@st.cache_resource
+def load_annoy_index():
+    embedder = SentenceTransformer("all-MiniLM-L6-v2")
+    texts = [item["text"] for item in rag_data]
+    dimension = 384
+
+    annoy_index = AnnoyIndex(dimension, 'angular')
+    annoy_index.load("index.ann")
+
+    return embedder, annoy_index, texts
+
+
+embedder, annoy_index, texts = load_annoy_index()
+
+
+def generate_career_advice(question: str) -> str:
+    messages = [
+        {"role": "system", "content":
+         """Вы — карьерный консультант для старшеклассников. 
+         Если ученик просит предложить карьерные пути, выберите 3 направления, которые лучше всего подходят под его интересы, сильные стороны и предпочтения.
+         Ответ держите в пределах 100 слов. Будьте сфокусированы и по делу."""},
+        {"role": "user", "content": question}
+    ]
+
+    client = InferenceClient(
+        provider="auto",
+        api_key=st.secrets["HF_TOKEN"]
+    )
+
+    response = client.chat.completions.create(
+        model="meta-llama/Meta-Llama-3-8B-Instruct",
+        messages=messages,
+        max_tokens=350,
+        temperature=0.7
+    )
+
+    return response.choices[0].message.content
+
+
+def generate_rag_career_advice(question: str, embedder, annoy_index, texts: list, k: int = 5) -> str:
+    query_embedding = embedder.encode([question], convert_to_numpy=True)
+
+    indices = annoy_index.get_nns_by_vector(query_embedding[0], k, include_distances=False)
+    context_docs = [texts[i] for i in indices]
+
+    context = "\n\n".join(context_docs)
+
+    messages = [
+        {"role": "system", "content":
+         f"""
+Вы — карьерный консультант для старшеклассников.
+
+У вас есть доступ к дополнительным материалам (контекст ниже).
+
+Контекст:
+{context}
+
+Ваша задача — выбрать 3 карьерных пути, которые лучше всего соответствуют интересам, сильным сторонам и предпочтениям ученика.  
+Требования:
+- Опираться только на сообщение ученика, не придумывать лишнего.  
+- Давать только те варианты, которые явно подходят, и избегать неподходящих.  
+- Для каждого варианта объяснить в 3–4 предложениях, почему он подходит именно этому ученику.  
+- Не давать общих советов или длинных списков «на всякий случай».  
+- Ответ не более 350 слов.  
+
+Если ученик задаёт другие вопросы — отвечайте прямо, используя контекст, но не предлагайте карьерные пути.
+"""},
+
+        {"role": "user", "content": question}
+    ]
+
+    client = InferenceClient(
+        provider="auto",
+        api_key=st.secrets["HF_TOKEN"]
+    )
+
+    response = client.chat.completions.create(
+        model="meta-llama/Meta-Llama-3-8B-Instruct",
+        messages=messages,
+        max_tokens=500,
+        temperature=0.7
+    )
+
+    answer = response.choices[0].message.content
+
+    if not answer.endswith("."):
+        last_period = answer.rfind(".")
+        if last_period != -1:
+            answer = answer[:last_period + 1]
+        else:
+            answer = answer.strip()
+
+    return answer
+
+
+with tabs[2]:
+    st.title("🎓 AI Карьерный консультант для старшеклассников")
+
+    student_question = st.text_area("Введите ваш вопрос о карьере:", height=100)
+
+    use_rag = st.toggle("Включить RAG (добавление знаний из базы)", value=True,
+                        help="Использовать дополнительные материалы для улучшения ответа модели.")
+
+    if st.button("Получить совет"):
+        with st.spinner("Генерация ответа..."):
+            if use_rag:
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.subheader("💡 Базовая модель")
+                    base_answer = generate_career_advice(student_question)
+                    st.write(base_answer)
+
+                with col2:
+                    st.subheader("📚 Модель с RAG")
+                    rag_answer = generate_rag_career_advice(student_question, embedder, annoy_index, texts)
+                    st.write(rag_answer)
+
+            else:
+                st.subheader("AI Совет по карьере")
+                base_answer = generate_career_advice(student_question)
+                st.write(base_answer)

@@ -610,11 +610,12 @@ A newer type reflecting labor market demand
         # download PDF button for tab1
         if st.button({"ru": "Сохранить результаты в PDF", "en": "Save results to PDF", "kz": "Нәтижені PDF-қа сақтау"}[lang]):
             if "tab1_results" in st.session_state and st.session_state["tab1_results"] is not None:
-                pdf_buf = save_tab1_results_to_pdf(st.session_state["tab1_results"], lang)
+                html = st.session_state["tab1_results"].to_html()
+                pdf_buffer = save_page_to_pdf(html)
                 st.download_button(
-                    label={"ru": "Скачать PDF", "en": "Download PDF", "kz": "Жүктеу PDF"}[lang],
-                    data=pdf_buf,
-                    file_name="tab1_results.pdf",
+                    label={"ru": "Скачать PDF", "en": "Download PDF", "kz": "PDF жүктеу"}[lang],
+                    data=pdf_buffer,
+                    file_name="prof_type_results.pdf",
                     mime="application/pdf"
                 )
             else:
@@ -637,16 +638,12 @@ with tabs[1]:
         st.write(st.session_state["tab2_ai_response"])
 
         # кнопка сохранить (скачать) — генерируем PDF и показываем кнопку
-        pdf_buffer = save_tab2_results_to_pdf(
-            ld["questions"],
-            [st.session_state.get(f"answer_{i}", "") for i in range(len(ld["questions"]))],
-            st.session_state["tab2_ai_response"],
-            lang
-        )
+        html = st.session_state["tab1_results"].to_html()
+        pdf_buffer = save_page_to_pdf(html)
         st.download_button(
             label={"ru": "Сохранить в PDF", "en": "Save as PDF", "kz": "PDF сақтау"}[lang],
             data=pdf_buffer,
-            file_name="tab2_results.pdf",
+            file_name="open_questions_analysis.pdf",
             mime="application/pdf"
         )
 
@@ -668,14 +665,11 @@ with tabs[2]:
     if "tab3_rag" in st.session_state:
         st.subheader(t["rag_model"])
         st.write(st.session_state["tab3_rag"])
-        pdf_buffer = save_tab3_results_to_pdf(
-            st.session_state.get("student_q", ""),
-            st.session_state["tab3_rag"],
-            lang
-        )
+        html = st.session_state["tab1_results"].to_html()
+        pdf_buffer = save_page_to_pdf(html)
         st.download_button(
             label={"ru": "Сохранить в PDF", "en": "Save as PDF", "kz": "PDF сақтау"}[lang],
             data=pdf_buffer,
-            file_name="tab3_results.pdf",
+            file_name="rag_ai_response.pdf",
             mime="application/pdf"
         )

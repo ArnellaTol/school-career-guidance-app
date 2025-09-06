@@ -615,7 +615,6 @@ def save_tab1_to_pdf(results_df, chart_image_io, lang):
     )
     elements = []
 
-    # --- Заголовок ---
     elements.append(Paragraph(titles.get(lang, titles['en']), styles['Heading1']))
     elements.append(Spacer(1, 12))
 
@@ -737,7 +736,6 @@ def save_tab3_to_pdf(question, rag_response, lang):
     # Вопрос
     elements.append(Paragraph(f"<b>{question_labels.get(lang, question_labels['en'])}</b><br/>{question}", styles['Normal']))
     elements.append(Spacer(1, 12))
-
     # Ответ
     elements.append(Paragraph(f"<b>{response_labels.get(lang, response_labels['en'])}</b>", styles['Normal']))
     elements.append(Paragraph(rag_response.replace("\n", "<br/>"), styles['Normal']))
@@ -749,8 +747,6 @@ def save_tab3_to_pdf(question, rag_response, lang):
 
 # ==========================
 #  INTERFACE
-# ==========================
-# словарь для отображения (label → value)
 lang_options = {"KZ": "kz", "EN": "en", "RU": "ru"}
 
 # селектор справа сверху: создаём 3 колонки, правая узкая
@@ -781,7 +777,6 @@ tabs = st.tabs([t["tab1"], t["tab2"], t["tab3"]])
 
 # ------------------------
 # TAB 1 - Grades
-# ------------------------
 with tabs[0]:
     with st.form("grades_form"):
         st.write(f"**{t['choose_type']}**")
@@ -808,7 +803,6 @@ with tabs[0]:
         st.session_state["tab1_results"] = result_df
 
     if "tab1_results" in st.session_state and st.session_state["tab1_results"] is not None:
-        # pick right type_columns dict
         if lang == "ru":
             type_columns_dict = type_columns_ru
         elif lang == "kz":
@@ -818,7 +812,6 @@ with tabs[0]:
 
         chart_image_buf = display_results(st.session_state["tab1_results"], ld, type_columns_dict)
 
-        # download PDF button for tab1
         if "tab1_results" in st.session_state and st.session_state["tab1_results"] is not None:
             html = st.session_state["tab1_results"].to_html()
             pdf_buffer = save_tab1_to_pdf(
@@ -835,7 +828,6 @@ with tabs[0]:
         else:
                 st.warning({"ru": "Нет результатов для сохранения", "en": "No results to save", "kz": "Сақтауға нәтиже жоқ"}[lang])
 
-        # description block (localized)
         if lang == "ru":
             st.title("Типы профессиональной деятельности")
             st.markdown("""
@@ -873,7 +865,6 @@ with tabs[0]:
 Выделен в последнее время в связи с потребностью рынка труда.  
 Сюда относятся специальности: *менеджеры, биржевые маклеры, аудиторы, брокеры, дилеры и другие профессии, связанные с коммерческой деятельностью*.
 """)
-
         elif lang == "en":
             st.title("Types of professional activities")
             st.markdown("""
@@ -911,7 +902,6 @@ Work with artistic creation and representation of reality
 A newer type reflecting labor market demand  
 *(managers, brokers, dealers, auditors, entrepreneurs)*.
 """)
-
         elif lang == "kz":
             st.title("Кәсіби қызмет түрлері")
             st.markdown("""
@@ -952,7 +942,6 @@ A newer type reflecting labor market demand
         
 # ------------------------
 # TAB 2 - Open questions
-# ------------------------
 with tabs[1]:
     with st.form("open_questions_form"):
         user_answers = [st.text_input(q, key=f"answer_{i}") for i, q in enumerate(ld["questions"])]
@@ -967,7 +956,6 @@ with tabs[1]:
         st.subheader(t["ai_response"])
         st.write(st.session_state["tab2_ai_response"])
 
-        # кнопка сохранить (скачать) — генерируем PDF и показываем кнопку
         pdf_buffer = save_tab2_to_pdf(
                 st.session_state["tab2_qas"], 
                 st.session_state["tab2_ai_response"], 
@@ -982,26 +970,31 @@ with tabs[1]:
 
 # ------------------------
 # TAB 3 - AI career (RAG only)
-# ------------------------
 with tabs[2]:
     with st.form("career_form"):
         st.title(t["advisor"])
 
         # мини-описание RAG
         st.markdown({
-            "en": "Here you can ask follow-up questions based on the career advice you’ve already received. "
-                  "The system uses a knowledge base (RAG) to provide more specific and personalized guidance.",
-            "ru": "Здесь вы можете задать уточняющие вопросы на основе уже полученных советов. "
-                  "Система использует базу знаний (RAG), чтобы давать более точные и персонализированные рекомендации.",
-            "kz": "Мұнда сіз бұрын алған кеңестерге негізделген қосымша сұрақтар қоя аласыз. "
-                  "Жүйе білім қорын (RAG) қолданып, нақтырақ және жекелендірілген нұсқаулар береді."
+    "en": "Here you can ask follow-up questions based on the career advice you’ve already received. "
+          "The system uses RAG (Retrieval-Augmented Generation), which means it retrieves information "
+          "from a prepared knowledge base and then generates answers. This helps provide more focused, "
+          "reliable, and personalized guidance — not random information from the internet.",
+    "ru": "Здесь вы можете задать уточняющие вопросы на основе уже полученных советов. "
+          "Система использует RAG (Retrieval-Augmented Generation — генерация с дополнением поиска), "
+          "то есть извлекает информацию из подготовленной базы знаний и формирует ответ. "
+          "Это помогает давать более точные, надёжные и персонализированные рекомендации — "
+          "а не случайную информацию из интернета.",
+    "kz": "Мұнда сіз бұрын алған кеңестерге негізделген қосымша сұрақтар қоя аласыз. "
+          "Жүйе RAG (Retrieval-Augmented Generation — іздеумен толықтырылған генерация) тәсілін қолданады, "
+          "яғни дайын білім қорынан ақпарат алып, жауап құрастырады. "
+          "Бұл интернеттегі кездейсоқ ақпарат емес, нақтыланған әрі жекелендірілген нұсқауларды ұсынады."
         }[lang])
-        
+
         # --- Expander с рекомендациями ---
         with st.expander({"ru": "Рекомендации по формулировке вопроса", 
                           "en": "Recommendations for formulating your question",
                           "kz": "Сұрақты құрастыру бойынша ұсыныстар"}[lang]):
-
             if lang == "ru":
                 st.markdown("""
                 **Пример 1: Определение профильных предметов**  
@@ -1028,7 +1021,6 @@ with tabs[2]:
                 RAG отвечает на основе нашей проверенной внутренней базы знаний — это даёт персонализированные и согласованные рекомендации и лучше защищает вашу приватность.
                 Для самых свежих фактов (даты приёма, конкретные цены и т. п.) используйте официальные сайты.
                 """)
-            
             elif lang == "en":
                 st.markdown("""
                 **Example 1: Choosing school subjects**  
@@ -1055,7 +1047,6 @@ with tabs[2]:
                 The RAG model responds based on our vetted internal knowledge base — this provides personalized and consistent recommendations and better protects your privacy.
                 For the most up-to-date facts (admission dates, specific prices, etc.) please refer to official websites.
                 """)
-            
             else:  # kz
                 st.markdown("""
                 **1-мысал: Профильдік пәндерді таңдау**  
@@ -1088,7 +1079,6 @@ with tabs[2]:
 
         # --- Кнопка ---
         submit_tab3 = st.form_submit_button(t["get_advice"])
-
 
     if submit_tab3:
         rag_answer = generate_rag_career_advice(student_question, embedder, annoy_index, texts, lang=st.session_state["lang"])

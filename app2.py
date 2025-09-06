@@ -465,6 +465,15 @@ lang_label = st.sidebar.selectbox(
 lang = lang_options[lang_label]
 lang_dict = lang_dicts[lang]
 
+# сохраняем язык в session_state
+if "lang" not in st.session_state:
+    st.session_state["lang"] = lang
+else:
+    st.session_state["lang"] = lang   # обновляем при смене
+
+t = translations[st.session_state["lang"]]
+ld = lang_dicts[st.session_state["lang"]]
+
 
 input_values = {}
 rag_data = load_jsonl_files("./jsonl datafiles")

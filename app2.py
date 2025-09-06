@@ -1,4 +1,3 @@
-# app_fixed.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -12,8 +11,7 @@ from huggingface_hub import InferenceClient, login
 from sentence_transformers import SentenceTransformer
 from annoy import AnnoyIndex
 from streamlit_option_menu import option_menu
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
+import pdfkit
 import io
 
 # ==========================
@@ -417,95 +415,10 @@ def generate_rag_career_advice(question: str, embedder, annoy_index, texts: list
 # ==========================
 #  PDF SAVE HELPERS
 # ==========================
-def save_tab1_results_to_pdf(results_df, lang):
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, height - 50, {
-        "ru": "Результаты профориентационного теста (оценки)",
-        "en": "Career guidance results (grades)",
-        "kz": "Кәсіби бағдар нәтижелері (бағалар)"
-    }[lang])
-    c.setFont("Helvetica", 12)
-    y = height - 100
-    for idx, row in results_df.iterrows():
-        for col, val in row.items():
-            c.drawString(50, y, f"{col}: {val}")
-            y -= 20
-            if y < 80:
-                c.showPage()
-                y = height - 50
-    c.save()
-    buffer.seek(0)
-    return buffer
 
-def save_tab2_results_to_pdf(questions, answers, ai_response, lang):
+def save_page_to_pdf(html_content):
     buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, height - 50, {
-        "ru": "Открытые вопросы и анализ ИИ",
-        "en": "Open questions and AI analysis",
-        "kz": "Ашық сұрақтар мен ЖИ талдауы"
-    }[lang])
-    c.setFont("Helvetica", 12)
-    y = height - 100
-    for q, a in zip(questions, answers):
-        c.drawString(50, y, f"Q: {q}")
-        y -= 18
-        c.drawString(70, y, f"A: {a}")
-        y -= 28
-        if y < 80:
-            c.showPage()
-            y = height - 50
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(50, y, {"ru": "Ответ ИИ:", "en": "AI Response:", "kz": "ЖИ жауабы:"}[lang])
-    y -= 18
-    c.setFont("Helvetica", 12)
-    for line in ai_response.splitlines():
-        c.drawString(50, y, line)
-        y -= 16
-        if y < 80:
-            c.showPage()
-            y = height - 50
-    c.save()
-    buffer.seek(0)
-    return buffer
-
-def save_tab3_results_to_pdf(question, rag_response, lang):
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer, pagesize=A4)
-    width, height = A4
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, height - 50, {
-        "ru": "AI профориентация (RAG модель)",
-        "en": "AI career guidance (RAG model)",
-        "kz": "ЖИ кәсіби бағдар (RAG моделі)"
-    }[lang])
-    c.setFont("Helvetica", 12)
-    y = height - 100
-    c.drawString(50, y, {"ru": "Вопрос ученика:", "en": "Student's question:", "kz": "Оқушы сұрағы:"}[lang])
-    y -= 18
-    for line in question.splitlines():
-        c.drawString(70, y, line)
-        y -= 16
-        if y < 80:
-            c.showPage()
-            y = height - 50
-    y -= 10
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(50, y, {"ru": "Ответ RAG модели:", "en": "RAG model response:", "kz": "RAG модель жауабы:"}[lang])
-    y -= 18
-    c.setFont("Helvetica", 12)
-    for line in rag_response.splitlines():
-        c.drawString(50, y, line)
-        y -= 16
-        if y < 80:
-            c.showPage()
-            y = height - 50
-    c.save()
+    pdfkit.from_string(html_content, False, output_path=buffer)
     buffer.seek(0)
     return buffer
 

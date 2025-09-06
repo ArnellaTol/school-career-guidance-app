@@ -11,8 +11,18 @@ from huggingface_hub import InferenceClient, login
 from sentence_transformers import SentenceTransformer
 from annoy import AnnoyIndex
 from streamlit_option_menu import option_menu
-from weasyprint import HTML
 import io
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Image as RLImage
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
+from reportlab.lib.units import mm
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+import matplotlib.pyplot as plt
+
+styles = getSampleStyleSheet()
 
 # ==========================
 #  CONFIG
@@ -299,17 +309,22 @@ def adjust_probabilities(probabilities, thresholds):
     return {key: min(100, (val / thresholds.get(key, 1e-9)) * 100) for key, val in probabilities.items()}
 
 def display_results(df, lang_meta_dict, type_columns_dict):
+    """
+    Показывает таблицу и рисует bar chart через matplotlib.
+    Возвращает BytesIO с PNG изображением графика (seeked to 0).
+    """
+    # подготовка данных
     results = {key: df[key].values[0] for key in df.columns}
     adjusted = adjust_probabilities(results, thresholds)
 
-    # selected types where adjusted >= 100
+    # selected types where adjusted >= 100 (для списка подходящих типов)
     selected_types = [type_columns_dict.get(k, k) for k, v in adjusted.items() if v >= 100]
 
     st.write(f"**{lang_meta_dict['most_suitable']}**")
     for t_name in selected_types:
         st.write(f"- {t_name}")
 
-    # создаем DataFrame
+    # создаем DataFrame для таблицы/графика
     types_list = [type_columns_dict.get(k, k) for k in adjusted.keys()]
     probs_list = list(adjusted.values())
 
@@ -326,7 +341,28 @@ def display_results(df, lang_meta_dict, type_columns_dict):
     )
 
     st.dataframe(chart_data, use_container_width=True)
-    st.bar_chart(chart_data.set_index(lang_meta_dict["type"]))
+
+    # --- создаём matplotlib график (чтобы точно иметь изображение в нужном порядке) ---
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    ax.bar(types_list, probs_list)
+    ax.set_xlabel(lang_meta_dict["type"])
+    ax.set_ylabel(lang_meta_dict["probability"])
+    ax.set_ylim(0, 110)  # чуть выше 100% для визуала
+    ax.set_xticklabels(types_list, rotation=30, ha='right')
+    fig.tight_layout()
+
+    # сохраняем в BytesIO
+    img_buf = io.BytesIO()
+    fig.savefig(img_buf, format='png', dpi=150, bbox_inches='tight')
+    plt.close(fig)
+    img_buf.seek(0)
+
+    # показываем график в Streamlit (тот же рисунок)
+    st.image(img_buf)
+
+    # вернуть буфер с изображением (чтобы потом положить в PDF)
+    img_buf.seek(0)
+    return img_buf
 
 
 def get_ai_response(answers):
@@ -416,9 +452,131 @@ def generate_rag_career_advice(question: str, embedder, annoy_index, texts: list
 #  PDF SAVE HELPERS
 # ==========================
 
-def save_page_to_pdf(html_content):
-    pdf_bytes = HTML(string=html_content).write_pdf()
-    return io.BytesIO(pdf_bytes)
+styles = getSampleStyleSheet()
+
+def _register_unicode_font():
+    """
+    Попытаться зарегистрировать DejaVuSans (путь типичный для Linux).
+    Если не получилось — вернём None и оставим standard font.
+    """
+    possible_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/local/share/fonts/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+    ]
+    for p in possible_paths:
+        try:
+            if os.path.exists(p):
+                pdfmetrics.registerFont(TTFont('DejaVuSans', p))
+                return 'DejaVuSans'
+        except Exception:
+            continue
+    return None
+
+# регистрируем (один раз)
+_unicode_font = _register_unicode_font()
+if _unicode_font:
+    # применим к стилям
+    styles['Normal'].fontName = _unicode_font
+    styles['Heading1'].fontName = _unicode_font
+    styles['Heading2'].fontName = _unicode_font
+
+def save_tab1_to_pdf(results_df, chart_image_io, lang):
+    """
+    results_df: DataFrame (одна строка с колонками class_0..class_5)
+    chart_image_io: BytesIO с PNG (как вернул display_results)
+    lang: 'ru'/'en'/'kz'
+    """
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20*mm, leftMargin=20*mm, topMargin=20*mm, bottomMargin=20*mm)
+    elements = []
+
+    titles = {
+        "ru": "Результаты профориентационного теста",
+        "en": "Career guidance results",
+        "kz": "Кәсіби бағдар нәтижелері"
+    }
+    elements.append(Paragraph(titles.get(lang, titles['en']), styles['Heading1']))
+    elements.append(Spacer(1, 12))
+
+    # Таблица: колонки и значения
+    data = [list(results_df.columns)] + results_df.values.tolist()
+    table = Table(data, hAlign="LEFT")
+    table_style = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+    ]
+    # если зарегистрирован юникод-шрифт, применим к таблице
+    if _unicode_font:
+        table_style.append(('FONT', (0, 0), (-1, -1), _unicode_font))
+    table.setStyle(table_style)
+    elements.append(table)
+    elements.append(Spacer(1, 12))
+
+    # диаграмма: RL Image может принимать file-like object
+    try:
+        chart_image_io.seek(0)
+        rl_img = RLImage(chart_image_io, width=160*mm, height=90*mm)  # подогнать размер
+        elements.append(rl_img)
+    except Exception as e:
+        # если что-то сломалось с картинкой, просто добавим текст
+        elements.append(Paragraph("Chart unavailable: " + str(e), styles['Normal']))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+def save_tab2_to_pdf(tab2_qas, ai_response, lang):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    elements = []
+
+    titles = {
+        "ru": "Открытые вопросы и анализ ИИ",
+        "en": "Open questions and AI analysis",
+        "kz": "Ашық сұрақтар мен ЖИ талдауы"
+    }
+
+    elements.append(Paragraph(titles[lang], styles['Heading1']))
+    elements.append(Spacer(1, 12))
+
+    for q, a in tab2_qas:
+        elements.append(Paragraph(f"<b>Q:</b> {q}", styles['Normal']))
+        elements.append(Paragraph(f"<b>A:</b> {a}", styles['Normal']))
+        elements.append(Spacer(1, 6))
+
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph("<b>AI response:</b>", styles['Normal']))
+    elements.append(Paragraph(ai_response.replace("\n", "<br/>"), styles['Normal']))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+def save_tab3_to_pdf(question, rag_response, lang):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    elements = []
+
+    titles = {
+        "ru": "AI профориентация (RAG модель)",
+        "en": "AI career guidance (RAG model)",
+        "kz": "ЖИ кәсіби бағдар (RAG моделі)"
+    }
+
+    elements.append(Paragraph(titles[lang], styles['Heading1']))
+    elements.append(Spacer(1, 12))
+
+    elements.append(Paragraph(f"<b>Student's question:</b><br/>{question}", styles['Normal']))
+    elements.append(Spacer(1, 12))
+
+    elements.append(Paragraph("<b>RAG response:</b>", styles['Normal']))
+    elements.append(Paragraph(rag_response.replace("\n", "<br/>"), styles['Normal']))
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
 
 # ==========================
 #  INTERFACE
@@ -489,7 +647,7 @@ with tabs[0]:
         else:
             type_columns_dict = type_columns_en
 
-        display_results(st.session_state["tab1_results"], ld, type_columns_dict)
+        chart_image_buf = display_results(st.session_state["tab1_results"], ld, type_columns_dict)
 
         # description block (localized)
         if lang == "ru":
@@ -609,7 +767,11 @@ A newer type reflecting labor market demand
         if st.button({"ru": "Сохранить результаты в PDF", "en": "Save results to PDF", "kz": "Нәтижені PDF-қа сақтау"}[lang]):
             if "tab1_results" in st.session_state and st.session_state["tab1_results"] is not None:
                 html = st.session_state["tab1_results"].to_html()
-                pdf_buffer = save_page_to_pdf(html)
+                pdf_buffer = save_tab1_to_pdf(
+                    st.session_state["tab1_results"],
+                    chart_image_buf,
+                    lang
+                )
                 st.download_button(
                     label={"ru": "Скачать PDF", "en": "Download PDF", "kz": "PDF жүктеу"}[lang],
                     data=pdf_buffer,
@@ -636,8 +798,11 @@ with tabs[1]:
         st.write(st.session_state["tab2_ai_response"])
 
         # кнопка сохранить (скачать) — генерируем PDF и показываем кнопку
-        html = st.session_state["tab1_results"].to_html()
-        pdf_buffer = save_page_to_pdf(html)
+        pdf_buffer = save_tab2_to_pdf(
+                st.session_state["tab2_qas"], 
+                st.session_state["tab2_ai_response"], 
+                lang
+            )
         st.download_button(
             label={"ru": "Сохранить в PDF", "en": "Save as PDF", "kz": "PDF сақтау"}[lang],
             data=pdf_buffer,
@@ -663,8 +828,11 @@ with tabs[2]:
     if "tab3_rag" in st.session_state:
         st.subheader(t["rag_model"])
         st.write(st.session_state["tab3_rag"])
-        html = st.session_state["tab1_results"].to_html()
-        pdf_buffer = save_page_to_pdf(html)
+        pdf_buffer = save_tab3_to_pdf(
+                st.session_state["student_q"], 
+                st.session_state["tab3_rag"], 
+                lang
+            )
         st.download_button(
             label={"ru": "Сохранить в PDF", "en": "Save as PDF", "kz": "PDF сақтау"}[lang],
             data=pdf_buffer,

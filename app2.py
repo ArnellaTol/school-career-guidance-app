@@ -417,10 +417,8 @@ def generate_rag_career_advice(question: str, embedder, annoy_index, texts: list
 # ==========================
 
 def save_page_to_pdf(html_content):
-    buffer = io.BytesIO()
-    pdfkit.from_string(html_content, False, output_path=buffer)
-    buffer.seek(0)
-    return buffer
+    pdf_bytes = pdfkit.from_string(html_content, False)
+    return io.BytesIO(pdf_bytes)
 
 # ==========================
 #  INTERFACE

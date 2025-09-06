@@ -635,7 +635,7 @@ with tabs[0]:
         st.session_state["tab1_results"] = result_df
 
     if "tab1_results" in st.session_state:
-        display_results(st.session_state["tab1_results"], t)
+        display_results(st.session_state["tab1_results"], t, current_column_names)
 
         # 🎯 Блок с описанием типов (3 языка)
         if lang == "ru":

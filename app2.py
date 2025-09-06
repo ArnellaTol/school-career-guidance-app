@@ -326,7 +326,7 @@ def display_results(df, lang_meta_dict, type_columns_dict):
 
     # создаем DataFrame для таблицы/графика
     types_list = [type_columns_dict.get(k, k) for k in adjusted.keys()]
-    probs_list = list(adjusted.values())
+    probs_list = [round(v, 2) for v in adjusted.values()]  # округление до сотых
 
     chart_data = pd.DataFrame({
         lang_meta_dict["type"]: types_list,
@@ -488,7 +488,7 @@ def save_tab1_to_pdf(results_df, chart_image_io, lang):
     lang: 'ru'/'en'/'kz'
     """
 
-    # выбираем словарь для перевода ключей в подписи
+    # словари перевода
     type_dicts = {
         "ru": type_columns_ru,
         "en": type_columns_en,
@@ -496,20 +496,43 @@ def save_tab1_to_pdf(results_df, chart_image_io, lang):
     }
     type_dict = type_dicts.get(lang, type_columns_en)
 
-    # готовим DataFrame с переименованными колонками
-    renamed_df = results_df.rename(columns=type_dict)
+    # округляем и переименовываем
+    renamed_df = results_df.rename(columns=type_dict).round(2)
 
-    buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20*mm, leftMargin=20*mm, topMargin=20*mm, bottomMargin=20*mm)
-    elements = []
+    # вычисляем наиболее подходящие типы (>= 100)
+    suitable_types = [col for col, val in renamed_df.iloc[0].items() if val >= 100]
 
+    # заголовки
     titles = {
         "ru": "Результаты профориентационного теста",
         "en": "Career guidance results",
         "kz": "Кәсіби бағдар нәтижелері"
     }
+    suitable_titles = {
+        "ru": "Наиболее подходящие типы:",
+        "en": "Most suitable types:",
+        "kz": "Ең қолайлы түрлері:"
+    }
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=20*mm, leftMargin=20*mm,
+        topMargin=20*mm, bottomMargin=20*mm
+    )
+    elements = []
+
+    # --- Заголовок ---
     elements.append(Paragraph(titles.get(lang, titles['en']), styles['Heading1']))
     elements.append(Spacer(1, 12))
+
+    # --- Блок с подходящими типами ---
+    if suitable_types:
+        elements.append(Paragraph(suitable_titles[lang], styles['Heading2']))
+        for t in suitable_types:
+            elements.append(Paragraph(f"- {t}", styles['Normal']))
+        elements.append(Spacer(1, 12))
 
     # --- Таблица ---
     data = [list(renamed_df.columns)] + renamed_df.values.tolist()
@@ -519,25 +542,24 @@ def save_tab1_to_pdf(results_df, chart_image_io, lang):
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
     ]
-    # если зарегистрирован юникод-шрифт, применим к таблице
     if _unicode_font:
         table_style.append(('FONT', (0, 0), (-1, -1), _unicode_font))
     table.setStyle(table_style)
     elements.append(table)
     elements.append(Spacer(1, 12))
 
-    # диаграмма: RL Image может принимать file-like object
+    # --- Диаграмма ---
     try:
         chart_image_io.seek(0)
-        rl_img = RLImage(chart_image_io, width=160*mm, height=90*mm)  # подогнать размер
+        rl_img = RLImage(chart_image_io, width=160*mm, height=90*mm)
         elements.append(rl_img)
     except Exception as e:
-        # если что-то сломалось с картинкой, просто добавим текст
         elements.append(Paragraph("Chart unavailable: " + str(e), styles['Normal']))
 
     doc.build(elements)
     buffer.seek(0)
     return buffer
+
 
 def save_tab2_to_pdf(tab2_qas, ai_response, lang):
     buffer = io.BytesIO()
@@ -696,21 +718,20 @@ with tabs[0]:
         chart_image_buf = display_results(st.session_state["tab1_results"], ld, type_columns_dict)
 
         # download PDF button for tab1
-        if st.button({"ru": "Сохранить результаты в PDF", "en": "Save results to PDF", "kz": "Нәтижені PDF-қа сақтау"}[lang]):
-            if "tab1_results" in st.session_state and st.session_state["tab1_results"] is not None:
-                html = st.session_state["tab1_results"].to_html()
-                pdf_buffer = save_tab1_to_pdf(
-                    st.session_state["tab1_results"],
-                    chart_image_buf,
-                    lang
-                )
-                st.download_button(
-                    label={"ru": "Скачать PDF", "en": "Download PDF", "kz": "PDF жүктеу"}[lang],
-                    data=pdf_buffer,
-                    file_name="prof_type_results.pdf",
-                    mime="application/pdf"
-                )
-            else:
+        if "tab1_results" in st.session_state and st.session_state["tab1_results"] is not None:
+            html = st.session_state["tab1_results"].to_html()
+            pdf_buffer = save_tab1_to_pdf(
+                st.session_state["tab1_results"],
+                chart_image_buf,
+                lang
+            )
+            st.download_button(
+                label={"ru": "Скачать PDF", "en": "Download PDF", "kz": "PDF жүктеу"}[lang],
+                data=pdf_buffer,
+                file_name="prof_type_results.pdf",
+                mime="application/pdf"
+            )
+        else:
                 st.warning({"ru": "Нет результатов для сохранения", "en": "No results to save", "kz": "Сақтауға нәтиже жоқ"}[lang])
 
         # description block (localized)
@@ -864,14 +885,91 @@ with tabs[1]:
 with tabs[2]:
     with st.form("career_form"):
         st.title(t["advisor"])
+
+        # --- Expander с рекомендациями ---
+        with st.expander({"ru": "Рекомендации по формулировке вопроса", 
+                          "en": "Recommendations for formulating your question",
+                          "kz": "Сұрақты құрастыру бойынша ұсыныстар"}[lang]):
+
+            if lang == "ru":
+                st.markdown("""
+                **Пример 1: Определение профильных предметов**  
+                Я хочу определиться с выбором двух профильных предметов из четырёх (физика, химия, биология, информатика).  
+                - Мне нравится делать: …  
+                - Мне не нравится делать: …  
+                - У меня хорошо получается: …  
+                - Мне сложно дается: …  
+                - Тип MBTI (не обязательно): …  
+                - Мотивационный тип (по Битяновой): …  
+                - Желаемая специальность: …  
+
+                **Пример 2: Определение специальности**  
+                Я хочу определиться с выбором специальности.  
+                - Я собираюсь выбрать (или уже выбрал) такие 2 профильных предмета из 4-х (физика, химия, биология, информатика): …  
+                - Мне нравится делать: …  
+                - Мне не нравится делать: …  
+                - У меня хорошо получается: …  
+                - Мне сложно дается: …  
+                - Тип MBTI (не обязательно): …  
+                - Мотивационный тип (по Битяновой): …  
+                """)
+            
+            elif lang == "en":
+                st.markdown("""
+                **Example 1: Choosing school subjects**  
+                I want to decide on two profile subjects out of four (physics, chemistry, biology, computer science).  
+                - I enjoy doing: …  
+                - I don’t like doing: …  
+                - I am good at: …  
+                - I find it difficult to: …  
+                - MBTI type (optional): …  
+                - Motivational type (Bitianova): …  
+                - Desired major: …  
+
+                **Example 2: Choosing a major**  
+                I want to decide on my major.  
+                - I am going to choose (or have already chosen) two profile subjects out of four (physics, chemistry, biology, computer science): …  
+                - I enjoy doing: …  
+                - I don’t like doing: …  
+                - I am good at: …  
+                - I find it difficult to: …  
+                - MBTI type (optional): …  
+                - Motivational type (Bitianova): …  
+                """)
+            
+            else:  # kz
+                st.markdown("""
+                **1-мысал: Профильдік пәндерді таңдау**  
+                Мен төрт пәннің ішінен (физика, химия, биология, информатика) екі профильдік пәнді таңдағым келеді.  
+                - Маған ұнайтын істер: …  
+                - Маған ұнамайтын істер: …  
+                - Маған жақсы берілетіндер: …  
+                - Маған қиын берілетіндер: …  
+                - MBTI типі (міндетті емес): …  
+                - Мотивациялық тип (Битянова бойынша): …  
+                - Таңдағысы келетін мамандық: …  
+
+                **2-мысал: Мамандықты таңдау**  
+                Мен мамандық таңдағым келеді.  
+                - Мен төрт пәннің ішінен (физика, химия, биология, информатика) осындай 2 профильдік пәнді таңдадым (немесе таңдағалы жатырмын): …  
+                - Маған ұнайтын істер: …  
+                - Маған ұнамайтын істер: …  
+                - Маған жақсы берілетіндер: …  
+                - Маған қиын берілетіндер: …  
+                - MBTI типі (міндетті емес): …  
+                - Мотивациялық тип (Битянова бойынша): …  
+                """)
+
+        # --- Основное поле ввода ---
         student_question = st.text_area(t["student_question"], height=100, key="student_q")
+
+        # --- Кнопка ---
         submit_tab3 = st.form_submit_button(t["get_advice"])
+
 
     if submit_tab3:
         rag_answer = generate_rag_career_advice(student_question, embedder, annoy_index, texts)
         st.session_state["tab3_rag"] = rag_answer
-        # # save student question into session for PDF
-        # st.session_state["student_q"] = student_question
 
     if "tab3_rag" in st.session_state:
         st.subheader(t["rag_model"])
@@ -884,6 +982,6 @@ with tabs[2]:
         st.download_button(
             label={"ru": "Сохранить в PDF", "en": "Save as PDF", "kz": "PDF сақтау"}[lang],
             data=pdf_buffer,
-            file_name="rag_ai_response.pdf",
+            file_name="ai_response.pdf",
             mime="application/pdf"
         )

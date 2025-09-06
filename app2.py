@@ -487,6 +487,18 @@ def save_tab1_to_pdf(results_df, chart_image_io, lang):
     chart_image_io: BytesIO с PNG (как вернул display_results)
     lang: 'ru'/'en'/'kz'
     """
+
+    # выбираем словарь для перевода ключей в подписи
+    type_dicts = {
+        "ru": type_columns_ru,
+        "en": type_columns_en,
+        "kz": type_columns_kz
+    }
+    type_dict = type_dicts.get(lang, type_columns_en)
+
+    # готовим DataFrame с переименованными колонками
+    renamed_df = results_df.rename(columns=type_dict)
+
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20*mm, leftMargin=20*mm, topMargin=20*mm, bottomMargin=20*mm)
     elements = []
@@ -499,8 +511,8 @@ def save_tab1_to_pdf(results_df, chart_image_io, lang):
     elements.append(Paragraph(titles.get(lang, titles['en']), styles['Heading1']))
     elements.append(Spacer(1, 12))
 
-    # Таблица: колонки и значения
-    data = [list(results_df.columns)] + results_df.values.tolist()
+    # --- Таблица ---
+    data = [list(renamed_df.columns)] + renamed_df.values.tolist()
     table = Table(data, hAlign="LEFT")
     table_style = [
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
@@ -538,21 +550,40 @@ def save_tab2_to_pdf(tab2_qas, ai_response, lang):
         "kz": "Ашық сұрақтар мен ЖИ талдауы"
     }
 
-    elements.append(Paragraph(titles[lang], styles['Heading1']))
+    q_labels = {
+        "ru": "Вопрос:",
+        "en": "Question:",
+        "kz": "Сұрақ:"
+    }
+
+    a_labels = {
+        "ru": "Ответ:",
+        "en": "Answer:",
+        "kz": "Жауап:"
+    }
+
+    ai_labels = {
+        "ru": "Анализ ИИ:",
+        "en": "AI response:",
+        "kz": "ЖИ талдауы:"
+    }
+
+    elements.append(Paragraph(titles.get(lang, titles['en']), styles['Heading1']))
     elements.append(Spacer(1, 12))
 
     for q, a in tab2_qas:
-        elements.append(Paragraph(f"<b>Q:</b> {q}", styles['Normal']))
-        elements.append(Paragraph(f"<b>A:</b> {a}", styles['Normal']))
+        elements.append(Paragraph(f"<b>{q_labels.get(lang, q_labels['en'])}</b> {q}", styles['Normal']))
+        elements.append(Paragraph(f"<b>{a_labels.get(lang, a_labels['en'])}</b> {a}", styles['Normal']))
         elements.append(Spacer(1, 6))
 
     elements.append(Spacer(1, 12))
-    elements.append(Paragraph("<b>AI response:</b>", styles['Normal']))
+    elements.append(Paragraph(f"<b>{ai_labels.get(lang, ai_labels['en'])}</b>", styles['Normal']))
     elements.append(Paragraph(ai_response.replace("\n", "<br/>"), styles['Normal']))
 
     doc.build(elements)
     buffer.seek(0)
     return buffer
+
 
 def save_tab3_to_pdf(question, rag_response, lang):
     buffer = io.BytesIO()
@@ -565,18 +596,33 @@ def save_tab3_to_pdf(question, rag_response, lang):
         "kz": "ЖИ кәсіби бағдар (RAG моделі)"
     }
 
-    elements.append(Paragraph(titles[lang], styles['Heading1']))
+    question_labels = {
+        "ru": "Вопрос ученика:",
+        "en": "Student's question:",
+        "kz": "Оқушының сұрағы:"
+    }
+
+    response_labels = {
+        "ru": "Ответ модели RAG:",
+        "en": "AI RAG model response:",
+        "kz": "RAG моделінің жауабы:"
+    }
+
+    elements.append(Paragraph(titles.get(lang, titles['en']), styles['Heading1']))
     elements.append(Spacer(1, 12))
 
-    elements.append(Paragraph(f"<b>Student's question:</b><br/>{question}", styles['Normal']))
+    # Вопрос
+    elements.append(Paragraph(f"<b>{question_labels.get(lang, question_labels['en'])}</b><br/>{question}", styles['Normal']))
     elements.append(Spacer(1, 12))
 
-    elements.append(Paragraph("<b>RAG response:</b>", styles['Normal']))
+    # Ответ
+    elements.append(Paragraph(f"<b>{response_labels.get(lang, response_labels['en'])}</b>", styles['Normal']))
     elements.append(Paragraph(rag_response.replace("\n", "<br/>"), styles['Normal']))
 
     doc.build(elements)
     buffer.seek(0)
     return buffer
+
 
 # ==========================
 #  INTERFACE
@@ -648,6 +694,24 @@ with tabs[0]:
             type_columns_dict = type_columns_en
 
         chart_image_buf = display_results(st.session_state["tab1_results"], ld, type_columns_dict)
+
+        # download PDF button for tab1
+        if st.button({"ru": "Сохранить результаты в PDF", "en": "Save results to PDF", "kz": "Нәтижені PDF-қа сақтау"}[lang]):
+            if "tab1_results" in st.session_state and st.session_state["tab1_results"] is not None:
+                html = st.session_state["tab1_results"].to_html()
+                pdf_buffer = save_tab1_to_pdf(
+                    st.session_state["tab1_results"],
+                    chart_image_buf,
+                    lang
+                )
+                st.download_button(
+                    label={"ru": "Скачать PDF", "en": "Download PDF", "kz": "PDF жүктеу"}[lang],
+                    data=pdf_buffer,
+                    file_name="prof_type_results.pdf",
+                    mime="application/pdf"
+                )
+            else:
+                st.warning({"ru": "Нет результатов для сохранения", "en": "No results to save", "kz": "Сақтауға нәтиже жоқ"}[lang])
 
         # description block (localized)
         if lang == "ru":
@@ -763,24 +827,7 @@ A newer type reflecting labor market demand
 Еңбек нарығының сұранысына байланысты жаңа бағыт  
 *(менеджерлер, брокерлер, дилерлер, аудиторлар, кәсіпкерлер)*.
 """)
-        # download PDF button for tab1
-        if st.button({"ru": "Сохранить результаты в PDF", "en": "Save results to PDF", "kz": "Нәтижені PDF-қа сақтау"}[lang]):
-            if "tab1_results" in st.session_state and st.session_state["tab1_results"] is not None:
-                html = st.session_state["tab1_results"].to_html()
-                pdf_buffer = save_tab1_to_pdf(
-                    st.session_state["tab1_results"],
-                    chart_image_buf,
-                    lang
-                )
-                st.download_button(
-                    label={"ru": "Скачать PDF", "en": "Download PDF", "kz": "PDF жүктеу"}[lang],
-                    data=pdf_buffer,
-                    file_name="prof_type_results.pdf",
-                    mime="application/pdf"
-                )
-            else:
-                st.warning({"ru": "Нет результатов для сохранения", "en": "No results to save", "kz": "Сақтауға нәтиже жоқ"}[lang])
-
+        
 # ------------------------
 # TAB 2 - Open questions
 # ------------------------
@@ -792,6 +839,7 @@ with tabs[1]:
     if submit_tab2:
         ai_response = get_ai_response(user_answers)
         st.session_state["tab2_ai_response"] = ai_response
+        st.session_state["tab2_qas"] = list(zip(ld["questions"], user_answers))  # сохраняем Q&A
 
     if "tab2_ai_response" in st.session_state:
         st.write(t["ai_response"])

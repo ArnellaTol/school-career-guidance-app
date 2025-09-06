@@ -635,7 +635,14 @@ with tabs[0]:
         st.session_state["tab1_results"] = result_df
 
     if "tab1_results" in st.session_state:
-        display_results(st.session_state["tab1_results"], t, current_column_names)
+        if lang == "ru":
+            type_columns_dict = type_columns_ru
+        elif lang == "kz":
+            type_columns_dict = type_columns_kz
+        else:
+            type_columns_dict = type_columns
+
+        display_results(st.session_state["tab1_results"], t, type_columns_dict)
 
         # 🎯 Блок с описанием типов (3 языка)
         if lang == "ru":

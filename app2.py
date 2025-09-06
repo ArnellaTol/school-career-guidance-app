@@ -455,11 +455,20 @@ lang_options = {
 }
 
 # селектор в сайдбаре
-lang_label = st.sidebar.selectbox(
-    "🌐 Выберите язык / Select language / Тілді таңдаңыз",
-    options=list(lang_options.keys()),   # то, что видно пользователю (KZ EN RU)
-    index=0   # по умолчанию KZ
-)
+# создаём три колонки, правая будет узкая
+col1, col2, col3 = st.columns([8, 1, 2])
+
+with col3:
+    lang_label = st.selectbox(
+        " ",  # скрываем текст метки
+        options=list(lang_options.keys()),  # KZ EN RU
+        index=0
+    )
+
+lang = lang_options[lang_label]
+t = translations[lang]
+ld = lang_dicts[lang]
+
 
 # получаем значение в нижнем регистре
 lang = lang_options[lang_label]

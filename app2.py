@@ -146,7 +146,7 @@ column_names_dict_kz = {
     'world_hist_10': 'Дүниежүзі тарихы'
 }
 
-lang_dicts = {
+lang_dict = {
     "ru": {
         "expander": "Введите оценки за {grade} класс:",
         "most_suitable": "Наиболее подходящие типы:",
@@ -571,12 +571,12 @@ with col3:
 
 lang = lang_options[lang_label]
 t = translations[lang]
-ld = lang_dicts[lang]
+ld = lang_dict[lang]
 
 
 # получаем значение в нижнем регистре
 lang = lang_options[lang_label]
-lang_dict = lang_dicts[lang]
+lang_dict = lang_dict[lang]
 
 # сохраняем язык в session_state
 if "lang" not in st.session_state:
@@ -585,7 +585,7 @@ else:
     st.session_state["lang"] = lang   # обновляем при смене
 
 t = translations[st.session_state["lang"]]
-ld = lang_dicts[st.session_state["lang"]]
+ld = lang_dict[st.session_state["lang"]]
 
 
 input_values = {}
@@ -595,8 +595,6 @@ embedder, annoy_index, texts = load_annoy_index(rag_data)
 
 # выбор языка (позже можно вынести в sidebar)
 lang = st.session_state.get("lang", "ru")
-t = translations[lang]       # короткая ссылка
-ld = lang_dicts[lang]        # для вопросов/экспандеров
 
 st.header(t["header"])
 tabs = st.tabs([t["tab1"], t["tab2"], t["tab3"]])

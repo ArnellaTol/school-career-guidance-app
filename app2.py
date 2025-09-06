@@ -324,11 +324,29 @@ def get_ai_response(answers):
     data = {
         "model": "ft:gpt-4o-2024-08-06:personal::An4sVvnb",
         "messages": [
-            {"role": "system", "content": "Assistant is an expert in career guidance..."},
-            {"role": "user", "content": " ".join([f"{i+1}. {a}" for i, a in enumerate(answers)])}
+            {
+                "role": "system",
+                "content": (
+                    "Assistant is an expert in career guidance. Assistant should answer in the same language "
+                    "as the one in which the user writes answers (could be russian, kazakh, english). "
+                    "User answers the following questions: "
+                    "1. Какие профессии вас интересуют на данный момент? "
+                    "2. Какие виды деятельности вам точно не интересны? "
+                    "3. Без учета финансовых аспектов, какие виды деятельности или профессии вам нравятся? "
+                    "4. Перечислите свои хобби и интересы: "
+                    "5. Назовите ролевые модели, чей образ жизни и достижения вас вдохновляют. "
+                    "6. Какие задачи придают вам энергии? "
+                    "7. Какие задачи вас утомляют?"
+                )
+            },
+            {
+                "role": "user",
+                "content": f"1. {answers[0]} 2. {answers[1]} 3. {answers[2]} 4. {answers[3]} 5. {answers[4]} 6. {answers[5]} 7. {answers[6]}"
+            }
         ],
         "max_tokens": 500
     }
+    
     response = requests.post(url, headers=headers, json=data)
     response.raise_for_status()
     return response.json()["choices"][0]["message"]["content"]
@@ -366,10 +384,7 @@ def generate_rag_career_advice(question: str, embedder, annoy_index, texts: list
     indices = annoy_index.get_nns_by_vector(query_embedding[0], k, include_distances=False)
     context_docs = [texts[i] for i in indices if i < len(texts)]
     context = "\n\n".join(context_docs)
-    messages = [
-        {"role": "system", "content": f"You are a career advisor. Context:\n{context}"},
-        {"role": "user", "content": question}
-    ]
+    messages = [ {"role": "system", "content": f""" You are a career advisor for high school students. You have access to relevant background knowledge about career paths, student preferences, and educational strategies, shown below. Context: {context} Your only task is to select 3 career paths that are the best possible match for the student's stated interests, strengths, and dislikes. Strict instructions: - Base your suggestions strictly on the student’s message. Do not invent or assume anything not mentioned. - Recommend only career paths that clearly align with what the student enjoys and is good at, and that avoid what they dislike or find difficult. - For each suggested path, explain in 3-4 sentences why it fits this student specifically. - Do not give general advice or list unrelated options "just in case." - Keep the total response under 350 words. Be focused and relevant. If student asks other questions, answer them directly (still use the background context) and do not generate career paths if not asked. """}, {"role": "user", "content": question} ]
     client = InferenceClient(provider="auto", api_key=st.secrets["HF_TOKEN"])
     response = client.chat.completions.create(
         model="meta-llama/Meta-Llama-3-8B-Instruct",

@@ -987,6 +987,16 @@ with tabs[2]:
     with st.form("career_form"):
         st.title(t["advisor"])
 
+        # мини-описание RAG
+        st.markdown({
+            "en": "Here you can ask follow-up questions based on the career advice you’ve already received. "
+                  "The system uses a knowledge base (RAG) to provide more specific and personalized guidance.",
+            "ru": "Здесь вы можете задать уточняющие вопросы на основе уже полученных советов. "
+                  "Система использует базу знаний (RAG), чтобы давать более точные и персонализированные рекомендации.",
+            "kz": "Мұнда сіз бұрын алған кеңестерге негізделген қосымша сұрақтар қоя аласыз. "
+                  "Жүйе білім қорын (RAG) қолданып, нақтырақ және жекелендірілген нұсқаулар береді."
+        }[lang])
+        
         # --- Expander с рекомендациями ---
         with st.expander({"ru": "Рекомендации по формулировке вопроса", 
                           "en": "Recommendations for formulating your question",

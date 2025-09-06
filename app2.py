@@ -983,7 +983,7 @@ with tabs[1]:
         submit_tab2 = st.form_submit_button(t["get_answer"])
 
     if submit_tab2:
-        ai_response = get_ai_response(user_answers)
+        ai_response = get_ai_response(user_answers, lang=st.session_state["lang"])
         st.session_state["tab2_ai_response"] = ai_response
         st.session_state["tab2_qas"] = list(zip(ld["questions"], user_answers))  # сохраняем Q&A
 
@@ -1105,7 +1105,7 @@ with tabs[2]:
 
 
     if submit_tab3:
-        rag_answer = generate_rag_career_advice(student_question, embedder, annoy_index, texts)
+        rag_answer = generate_rag_career_advice(student_question, embedder, annoy_index, texts, lang=st.session_state["lang"])
         st.session_state["tab3_rag"] = rag_answer
 
     if "tab3_rag" in st.session_state:

@@ -194,7 +194,7 @@ lang_meta = {
     },
     "kz": {
         "expander": "{grade}-сынып бағаларын енгізіңіз:",
-        "most_suitable": "Ең қолайлы типтер:",
+        "most_suitable": "Ең қолайлы түрлері:",
         "probability": "Ықтималдық",
         "type": "Түрі",
         "questions": [
@@ -256,7 +256,7 @@ translations = {
         "tab3": "ЖИ кәсіби бағдаршы",
         "choose_type": "Өз мотивациялық типіңізді таңдаңыз:",
         "get_result": "Нәтиже алу",
-        "most_suitable": "Ең қолайлы типтер:",
+        "most_suitable": "Ең қолайлы түрлері:",
         "get_answer": "Жауап алу",
         "ai_response": "ЖИ жауабы:",
         "advisor": "🎓 Кәсіби бағдар беретін ЖИ ассистенті",
@@ -364,8 +364,66 @@ def display_results(df, lang_meta_dict, type_columns_dict):
     img_buf.seek(0)
     return img_buf
 
+TRANSLATOR_PROMPT = """You are a professional translator and text corrector.
+- Your only task is to translate any input text into clear, fluent English.
+- If the text is already in English, correct grammar, spelling, and style issues.
+- If the text mixes languages, translate everything into English.
+- Do not add explanations, notes, or any extra content. Return only the translated and corrected text."""
 
-def get_ai_response(answers):
+def translate_to_english(text: str) -> str:
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {st.secrets['OPENAI_API_KEY']}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": "gpt-4o-mini",  # лёгкая и быстрая модель для переводов
+        "messages": [
+            {"role": "system", "content": TRANSLATOR_PROMPT},
+            {"role": "user", "content": text}
+        ],
+        "max_tokens": 1000,
+    }
+    response = requests.post(url, headers=headers, json=data)
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"].strip()
+
+def translate_from_english(text: str, lang: str) -> str:
+    if lang == "en":
+        return text  # если интерфейс на английском — перевод не нужен
+
+    targets = {
+        "ru": "Russian",
+        "kz": "Kazakh"
+    }
+    target_lang = targets.get(lang, "English")
+
+    prompt = f"""Translate the following text from English into {target_lang}.
+- Keep meaning accurate and natural.
+- Do not add explanations or extra text."""
+
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {st.secrets['OPENAI_API_KEY']}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": "gpt-4o-mini",
+        "messages": [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": text}
+        ],
+        "max_tokens": 800,
+    }
+    response = requests.post(url, headers=headers, json=data)
+    response.raise_for_status()
+    return response.json()["choices"][0]["message"]["content"].strip()
+
+
+def get_ai_response(answers, lang="en"):
+    # --- переводим ответы ученика ---
+    translated_answers = [translate_to_english(a) for a in answers]
+
     url = "https://api.openai.com/v1/chat/completions"
     headers = {"Authorization": f"Bearer {st.secrets['OPENAI_API_KEY']}", "Content-Type": "application/json"}
     data = {
@@ -374,29 +432,32 @@ def get_ai_response(answers):
             {
                 "role": "system",
                 "content": (
-                    "Assistant is an expert in career guidance. Assistant should answer in the same language "
-                    "as the one in which the user writes answers (could be russian, kazakh, english). "
+                    "Assistant is an expert in career guidance. Assistant should answer in english language and keep the total response under 350 words. "
                     "User answers the following questions: "
-                    "1. Какие профессии вас интересуют на данный момент? "
-                    "2. Какие виды деятельности вам точно не интересны? "
-                    "3. Без учета финансовых аспектов, какие виды деятельности или профессии вам нравятся? "
-                    "4. Перечислите свои хобби и интересы: "
-                    "5. Назовите ролевые модели, чей образ жизни и достижения вас вдохновляют. "
-                    "6. Какие задачи придают вам энергии? "
-                    "7. Какие задачи вас утомляют?"
+                    "1. Which professions are you currently interested in? "
+                    "2. Which activities are you definitely not interested in? "
+                    "3. Regardless of finances, which activities or professions do you enjoy? "
+                    "4. List your hobbies and interests: "
+                    "5. Name role models whose lifestyles and achievements inspire you. "
+                    "6. Which tasks give you energy? "
+                    "7. Which tasks drain your energy?"
                 )
             },
             {
                 "role": "user",
-                "content": f"1. {answers[0]} 2. {answers[1]} 3. {answers[2]} 4. {answers[3]} 5. {answers[4]} 6. {answers[5]} 7. {answers[6]}"
+                "content": f"1. {translated_answers[0]} 2. {translated_answers[1]} 3. {translated_answers[2]} 4. {translated_answers[3]} 5. {translated_answers[4]} 6. {translated_answers[5]} 7. {translated_answers[6]}"
             }
         ],
-        "max_tokens": 500
+        "max_tokens": 550
     }
 
     response = requests.post(url, headers=headers, json=data)
     response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"]
+    answer_en = response.json()["choices"][0]["message"]["content"].strip()
+
+    # --- переводим ответ обратно ---
+    return translate_from_english(answer_en, lang)
+
 
 @st.cache_data(show_spinner="Loading...")
 def load_jsonl_files(folder_path):
@@ -426,27 +487,39 @@ def load_annoy_index(rag_data):
         index.load("index.ann")
     return embedder, index, texts
 
-def generate_rag_career_advice(question: str, embedder, annoy_index, texts: list, k: int = 5) -> str:
-    query_embedding = embedder.encode([question], convert_to_numpy=True)
+def generate_rag_career_advice(question: str, embedder, annoy_index, texts: list, lang="en", k: int = 5) -> str:
+    # --- перевод вопроса в английский ---
+    translated_question = translate_to_english(question)
+
+    query_embedding = embedder.encode([translated_question], convert_to_numpy=True)
     indices = annoy_index.get_nns_by_vector(query_embedding[0], k, include_distances=False)
     context_docs = [texts[i] for i in indices if i < len(texts)]
     context = "\n\n".join(context_docs)
-    messages = [ {"role": "system", "content": f""" You are a career advisor for high school students. You have access to relevant background knowledge about career paths, student preferences, and educational strategies, shown below. Context: {context} Your only task is to select 3 career paths that are the best possible match for the student's stated interests, strengths, and dislikes. Strict instructions: - Base your suggestions strictly on the student’s message. Do not invent or assume anything not mentioned. - Recommend only career paths that clearly align with what the student enjoys and is good at, and that avoid what they dislike or find difficult. - For each suggested path, explain in 3-4 sentences why it fits this student specifically. - Do not give general advice or list unrelated options "just in case." - Keep the total response under 350 words. Be focused and relevant. If student asks other questions, answer them directly (still use the background context) and do not generate career paths if not asked. """}, {"role": "user", "content": question} ]
+
+    messages = [
+        {"role": "system", "content": f""" You are a career advisor for high school students. You have access to relevant background knowledge about career paths, student preferences, and educational strategies, shown below. Context: {context} Your only task is to select 3 career paths that are the best possible match for the student's stated interests, strengths, and dislikes. Strict instructions: - Base your suggestions strictly on the student’s message. Do not invent or assume anything not mentioned. - Recommend only career paths that clearly align with what the student enjoys and is good at, and that avoid what they dislike or find difficult. - For each suggested path, explain in 3-4 sentences why it fits this student specifically. - Do not give general advice or list unrelated options "just in case." - Keep the total response under 350 words. Be focused and relevant. If student asks other questions, answer them directly (still use the background context) and do not generate career paths if not asked. """},
+        {"role": "user", "content": translated_question}
+    ]
+
     client = InferenceClient(provider="auto", api_key=st.secrets["HF_TOKEN"])
     response = client.chat.completions.create(
         model="meta-llama/Meta-Llama-3-8B-Instruct",
         messages=messages,
-        max_tokens=500,
+        max_tokens=550,
         temperature=0.7
     )
-    answer = response.choices[0].message.content
-    if not answer.endswith("."):
-        last_period = answer.rfind(".")
+
+    answer_en = response.choices[0].message.content.strip()
+    if not answer_en.endswith("."):
+        last_period = answer_en.rfind(".")
         if last_period != -1:
-            answer = answer[:last_period + 1]
+            answer_en = answer_en[:last_period + 1]
         else:
-            answer = answer.strip()
-    return answer
+            answer_en = answer_en.strip()
+
+    # --- переводим ответ обратно ---
+    return translate_from_english(answer_en, lang)
+
 
 # ==========================
 #  PDF SAVE HELPERS
@@ -496,11 +569,15 @@ def save_tab1_to_pdf(results_df, chart_image_io, lang):
     }
     type_dict = type_dicts.get(lang, type_columns_en)
 
-    # округляем и переименовываем
-    renamed_df = results_df.rename(columns=type_dict).round(2)
+    # --- применяем adjust_probabilities, как в display_results ---
+    results = {key: results_df[key].values[0] for key in results_df.columns}
+    adjusted = adjust_probabilities(results, thresholds)
+
+    # превращаем в DataFrame для таблицы
+    renamed_df = pd.DataFrame([adjusted]).rename(columns=type_dict).round(2)
 
     # вычисляем наиболее подходящие типы (>= 100)
-    suitable_types = [col for col, val in renamed_df.iloc[0].items() if val >= 100]
+    suitable_types = [type_dict.get(col, col) for col, val in adjusted.items() if val >= 100]
 
     # заголовки
     titles = {
@@ -559,6 +636,7 @@ def save_tab1_to_pdf(results_df, chart_image_io, lang):
     doc.build(elements)
     buffer.seek(0)
     return buffer
+
 
 
 def save_tab2_to_pdf(tab2_qas, ai_response, lang):
@@ -912,6 +990,10 @@ with tabs[2]:
                 - Мне сложно дается: …  
                 - Тип MBTI (не обязательно): …  
                 - Мотивационный тип (по Битяновой): …  
+                
+                **Примечание:**
+                RAG отвечает на основе нашей проверенной внутренней базы знаний — это даёт персонализированные и согласованные рекомендации и лучше защищает вашу приватность.
+                Для самых свежих фактов (даты приёма, конкретные цены и т. п.) используйте официальные сайты.
                 """)
             
             elif lang == "en":
@@ -935,6 +1017,10 @@ with tabs[2]:
                 - I find it difficult to: …  
                 - MBTI type (optional): …  
                 - Motivational type (Bitianova): …  
+                            
+                **Note:**
+                The RAG model responds based on our vetted internal knowledge base — this provides personalized and consistent recommendations and better protects your privacy.
+                For the most up-to-date facts (admission dates, specific prices, etc.) please refer to official websites.
                 """)
             
             else:  # kz
@@ -958,6 +1044,10 @@ with tabs[2]:
                 - Маған қиын берілетіндер: …  
                 - MBTI типі (міндетті емес): …  
                 - Мотивациялық тип (Битянова бойынша): …  
+                            
+                **Ескерту:**
+                RAG біздің тексерілген ішкі білім базасына негізделген жауап береді — бұл жеке және үйлесімді ұсыныстар береді және сіздің құпиялылығыңызды жақсы қорғайды.
+                Ең соңғы деректер (қабылдау күндері, нақты бағалар және т.б.) үшін ресми сайттарға жүгініңіз.
                 """)
 
         # --- Основное поле ввода ---

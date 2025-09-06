@@ -280,28 +280,28 @@ def load_annoy_index(rag_data):
     index.load("index.ann")
     return embedder, index, texts
 
-def generate_career_advice(question: str) -> str:
-    messages = [
-        {"role": "system", "content": 
-         f"""You are a career advisor for high school students. 
-         Student can ask different questions. In case of asking career paths suggestions, you need to select 3 career paths that are the best possible match for the student's stated interests, strengths, and dislikes.
-         Keep the total response under 100 words. Be focused and relevant."""},
-        {"role": "user", "content": question}
-    ]
-    client = InferenceClient( 
-    provider="auto", 
-    api_key=st.secrets["HF_TOKEN"])
+# def generate_career_advice(question: str) -> str:
+#     messages = [
+#         {"role": "system", "content": 
+#          f"""You are a career advisor for high school students. 
+#          Student can ask different questions. In case of asking career paths suggestions, you need to select 3 career paths that are the best possible match for the student's stated interests, strengths, and dislikes.
+#          Keep the total response under 100 words. Be focused and relevant."""},
+#         {"role": "user", "content": question}
+#     ]
+#     client = InferenceClient( 
+#     provider="auto", 
+#     api_key=st.secrets["HF_TOKEN"])
 
-    response = client.chat.completions.create(
-    model="meta-llama/Meta-Llama-3-8B-Instruct",
-    messages=messages,
-    max_tokens=350,
-    temperature=0.7
-    )
+#     response = client.chat.completions.create(
+#     model="meta-llama/Meta-Llama-3-8B-Instruct",
+#     messages=messages,
+#     max_tokens=350,
+#     temperature=0.7
+#     )
 
-    answer = response.choices[0].message.content
+#     answer = response.choices[0].message.content
 
-    return answer
+#     return answer
 
 def generate_rag_career_advice(question: str, embedder, annoy_index, texts: list, k: int = 5) -> str:    
     query_embedding = embedder.encode([question], convert_to_numpy=True)
@@ -356,12 +356,116 @@ If student asks other questions, answer them directly (still use the background 
     return answer
 
 
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+import io
+
+def save_tab1_results_to_pdf(results_df, lang):
+    """Сохраняет результаты модели из таба 1"""
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, height - 50, {
+        "ru": "Результаты профориентационного теста (оценки)",
+        "en": "Career guidance results (grades)",
+        "kz": "Кәсіби бағдар нәтижелері (бағалар)"
+    }[lang])
+
+    c.setFont("Helvetica", 12)
+    y = height - 100
+    for idx, row in results_df.iterrows():
+        for col, val in row.items():
+            c.drawString(50, y, f"{col}: {val}")
+            y -= 20
+
+    c.save()
+    buffer.seek(0)
+    return buffer
+
+
+def save_tab2_results_to_pdf(questions, answers, ai_response, lang):
+    """Сохраняет вопросы, ответы ученика и ответ ИИ (таб 2)"""
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, height - 50, {
+        "ru": "Открытые вопросы и анализ ИИ",
+        "en": "Open questions and AI analysis",
+        "kz": "Ашық сұрақтар мен ЖИ талдауы"
+    }[lang])
+
+    c.setFont("Helvetica", 12)
+    y = height - 100
+    for q, a in zip(questions, answers):
+        c.drawString(50, y, f"Q: {q}")
+        y -= 20
+        c.drawString(70, y, f"A: {a}")
+        y -= 30
+
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, y, {
+        "ru": "Ответ ИИ:",
+        "en": "AI Response:",
+        "kz": "ЖИ жауабы:"
+    }[lang])
+    y -= 20
+    c.setFont("Helvetica", 12)
+    c.drawString(50, y, ai_response)
+
+    c.save()
+    buffer.seek(0)
+    return buffer
+
+
+def save_tab3_results_to_pdf(question, rag_response, lang):
+    """Сохраняет вопрос ученика и RAG ответ (таб 3)"""
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    c.setFont("Helvetica-Bold", 14)
+    c.drawString(50, height - 50, {
+        "ru": "AI профориентация (RAG модель)",
+        "en": "AI career guidance (RAG model)",
+        "kz": "ЖИ кәсіби бағдар (RAG моделі)"
+    }[lang])
+
+    c.setFont("Helvetica", 12)
+    y = height - 100
+    c.drawString(50, y, {
+        "ru": "Вопрос ученика:",
+        "en": "Student's question:",
+        "kz": "Оқушы сұрағы:"
+    }[lang])
+    y -= 20
+    c.drawString(70, y, question)
+
+    y -= 40
+    c.setFont("Helvetica-Bold", 12)
+    c.drawString(50, y, {
+        "ru": "Ответ RAG модели:",
+        "en": "RAG model response:",
+        "kz": "RAG модель жауабы:"
+    }[lang])
+    y -= 20
+    c.setFont("Helvetica", 12)
+    c.drawString(50, y, rag_response)
+
+    c.save()
+    buffer.seek(0)
+    return buffer
+
+
 # ==========================
 #  TRANSLATIONS
 # ==========================
 translations = {
     "en": {
-        "header": "AI program for school career guidance",
+        "header": "AI-powered program for school career guidance",
         "tab1": "School grades",
         "tab2": "Open questions",
         "tab3": "AI career assistant",
@@ -507,6 +611,7 @@ column_names_dicts = {
 # выбираем активный словарь по языку
 current_column_names = column_names_dicts[lang]
 
+# TAB 1
 with tabs[0]:
     with st.form("grades_form"):
         st.write(f"**{t['choose_type']}**")
@@ -517,12 +622,135 @@ with tabs[0]:
             create_expander(
                 grade,
                 [c for c in inp_col_names if c.endswith(f"_{grade}")],
-                {"expander": t["expander"]},  # подставляем фразу из перевода
-                current_column_names          # ✅ передаем словарь предметов
+                {"expander": t["expander"]},
+                current_column_names
             )
 
         submit_tab1 = st.form_submit_button(t["get_result"])
 
+    # 👉 обработка нажатия кнопки
+    if submit_tab1:
+        df = save_to_dataframe(selected_checkboxes, input_values)
+        result_df = apply_model("random_forest_model.pkl", df)
+        st.session_state["tab1_results"] = result_df
+
+    if "tab1_results" in st.session_state:
+        display_results(st.session_state["tab1_results"], t)
+
+        # 🎯 Блок с описанием типов (3 языка)
+        if lang == "ru":
+            st.title("Типы профессиональной деятельности")
+            st.markdown("""
+**1. ЧЕЛОВЕК-ЖИВАЯ ПРИРОДА (П).**  
+Представители этого типа имеют дело с растительными и живыми организмами, микроорганизмами и условиями их существования  
+*(агроном, ветврач, полевод, животновод, кинолог, фермер, геолог)*.
+
+---
+
+**2. ЧЕЛОВЕК-ТЕХНИКА И НЕЖИВАЯ ПРИРОДА (Т).**  
+Работники имеют дело с неживыми и техническими объектами труда  
+*(слесарь, автомеханик, водитель, инженер, моторист, плотник, штукатур, сварщик, конструктор, контролер, физик, химик)*.
+
+---
+
+**3. ЧЕЛОВЕК-ЧЕЛОВЕК (Ч).**  
+Предметом интереса, распознания, обслуживания, преобразования здесь являются социальные системы, сообщества, группы населения, люди разного возраста  
+*(учитель, менеджер, врач, страховой агент, воспитатель, няня, продавец, социальный работник, массажист, психолог)*.
+
+---
+
+**4. ЧЕЛОВЕК-ЗНАКОВАЯ СИСТЕМА (З).**  
+Естественные и искусственные языки, условные знаки, символы, формулы — вот предметные миры, которые занимают представителей этого типа  
+*(бухгалтер, программист, оператор ПК, радиомонтажник, экономист, телефонист, машинистка, переводчик, кассир)*.
+
+---
+
+**5. ЧЕЛОВЕК-ХУДОЖЕСТВЕННЫЙ ОБРАЗ (Х).**  
+Явления, факты художественного отображения действительности — вот что занимает представителей этого типа  
+*(артист, дирижер, художник, маляр, портной, повар, парикмахер, музыкант, архитектор)*.
+
+---
+
+**6. ЧЕЛОВЕК-БИЗНЕС (Б).**  
+Выделен в последнее время в связи с потребностью рынка труда.  
+Сюда относятся специальности: *менеджеры, биржевые маклеры, аудиторы, брокеры, дилеры и другие профессии, связанные с коммерческой деятельностью*.
+""")
+
+        elif lang == "en":
+            st.title("Types of professional activities")
+            st.markdown("""
+**1. HUMAN–NATURE (N).**  
+Work with plants, animals, microorganisms, and their living conditions  
+*(agronomist, veterinarian, farmer, dog handler, geologist)*.
+
+---
+
+**2. HUMAN–TECHNOLOGY (T).**  
+Work with inanimate objects and technical systems  
+*(mechanic, driver, engineer, carpenter, welder, constructor, physicist, chemist)*.
+
+---
+
+**3. HUMAN–HUMAN (H).**  
+Work with people, communities, social systems  
+*(teacher, manager, doctor, nanny, salesperson, psychologist, social worker)*.
+
+---
+
+**4. HUMAN–SIGN SYSTEMS (S).**  
+Work with languages, signs, symbols, codes, formulas  
+*(accountant, programmer, operator, economist, translator, cashier)*.
+
+---
+
+**5. HUMAN–ARTISTIC IMAGE (A).**  
+Work with artistic creation and representation of reality  
+*(actor, conductor, painter, tailor, chef, musician, architect)*.
+
+---
+
+**6. HUMAN–BUSINESS (B).**  
+A newer type reflecting labor market demand  
+*(managers, brokers, dealers, auditors, entrepreneurs)*.
+""")
+
+        elif lang == "kz":
+            st.title("Кәсіби қызмет түрлері")
+            st.markdown("""
+**1. АДАМ–ТІРІ ТАБИҒАТ (Т).**  
+Өсімдіктермен, жануарлармен, микроорганизмдермен және олардың тіршілік жағдайларымен жұмыс  
+*(агроном, ветеринар, малшы, кинолог, фермер, геолог)*.
+
+---
+
+**2. АДАМ–ТЕХНИКА ЖӘНЕ ӨЛІ ТАБИҒАТ (Т).**  
+Өлі және техникалық еңбек объектілерімен жұмыс  
+*(слесарь, механик, жүргізуші, инженер, ағаш ұстасы, дәнекерлеуші, физик, химик)*.
+
+---
+
+**3. АДАМ–АДАМ (А).**  
+Қоғамдық жүйелермен, қауымдармен, әртүрлі жастағы адамдармен жұмыс  
+*(мұғалім, менеджер, дәрігер, тәрбиеші, сатушы, әлеуметтік қызметкер, массажист, психолог)*.
+
+---
+
+**4. АДАМ–БЕЛГІЛІК ЖҮЙЕ (Б).**  
+Тілдермен, таңбалармен, формулалармен жұмыс  
+*(бухгалтер, бағдарламашы, экономист, аудармашы, кассир)*.
+
+---
+
+**5. АДАМ–КӨРКЕМ БЕЙНЕ (К).**  
+Шығармашылық, өнер арқылы шындықты бейнелеу  
+*(әртіс, дирижер, суретші, тігінші, аспаз, музыкант, сәулетші)*.
+
+---
+
+**6. АДАМ–БИЗНЕС (Б).**  
+Еңбек нарығының сұранысына байланысты жаңа бағыт  
+*(менеджерлер, брокерлер, дилерлер, аудиторлар, кәсіпкерлер)*.
+""")
 
 # TAB 2
 with tabs[1]:

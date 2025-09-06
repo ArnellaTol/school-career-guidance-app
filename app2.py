@@ -370,6 +370,10 @@ TRANSLATOR_PROMPT = """You are a professional translator and text corrector.
 - If the text mixes languages, translate everything into English.
 - Do not add explanations, notes, or any extra content. Return only the translated and corrected text."""
 
+import json
+import requests
+import streamlit as st
+
 def translate_to_english(text: str) -> str:
     url = "https://api.openai.com/v1/chat/completions"
     headers = {
@@ -384,9 +388,27 @@ def translate_to_english(text: str) -> str:
         ],
         "max_tokens": 1000,
     }
+
     response = requests.post(url, headers=headers, json=data)
+
+    # логируем статус и тело ответа
+    st.write("DEBUG translate_to_english status:", response.status_code)
+    try:
+        response_json = response.json()
+        st.write("DEBUG translate_to_english raw response:", json.dumps(response_json, indent=2, ensure_ascii=False))
+    except Exception as e:
+        st.write("DEBUG translate_to_english JSON parse error:", str(e))
+        st.write("DEBUG translate_to_english raw text:", response.text)
+        raise
+
     response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"].strip()
+
+    try:
+        return response_json["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        st.write("DEBUG translate_to_english parse error:", str(e))
+        return text  # fallback: возвращаем оригинал
+
 
 def translate_from_english(text: str, lang: str) -> str:
     if lang == "en":
@@ -415,9 +437,26 @@ def translate_from_english(text: str, lang: str) -> str:
         ],
         "max_tokens": 800,
     }
+
     response = requests.post(url, headers=headers, json=data)
+
+    # логирование
+    st.write("DEBUG translate_from_english status:", response.status_code)
+    try:
+        response_json = response.json()
+        st.write("DEBUG translate_from_english raw response:", json.dumps(response_json, indent=2, ensure_ascii=False))
+    except Exception as e:
+        st.write("DEBUG translate_from_english JSON parse error:", str(e))
+        st.write("DEBUG translate_from_english raw text:", response.text)
+        raise
+
     response.raise_for_status()
-    return response.json()["choices"][0]["message"]["content"].strip()
+
+    try:
+        return response_json["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        st.write("DEBUG translate_from_english parse error:", str(e))
+        return text
 
 
 def get_ai_response(answers, lang="en"):
@@ -612,7 +651,15 @@ def save_tab1_to_pdf(results_df, chart_image_io, lang):
         elements.append(Spacer(1, 12))
 
     # --- Таблица ---
-    data = [list(renamed_df.columns)] + renamed_df.values.tolist()
+    # превращаем в таблицу: строки = типы, колонки = ["Тип", "Значение"]
+    transposed_df = renamed_df.T.reset_index()
+    transposed_df.columns = [
+        {"ru": "Тип", "en": "Type", "kz": "Түрі"}[lang],
+        {"ru": "Значение", "en": "Value", "kz": "Мәні"}[lang]
+    ]
+    # данные для ReportLab таблицы
+    data = [list(transposed_df.columns)] + transposed_df.values.tolist()
+
     table = Table(data, hAlign="LEFT")
     table_style = [
         ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),

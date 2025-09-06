@@ -370,9 +370,6 @@ TRANSLATOR_PROMPT = """You are a professional translator and text corrector.
 - If the text mixes languages, translate everything into English.
 - Do not add explanations, notes, or any extra content. Return only the translated and corrected text."""
 
-import json
-import requests
-import streamlit as st
 
 def translate_to_english(text: str) -> str:
     url = "https://api.openai.com/v1/chat/completions"
@@ -390,23 +387,12 @@ def translate_to_english(text: str) -> str:
     }
 
     response = requests.post(url, headers=headers, json=data)
-
-    # логируем статус и тело ответа
-    st.write("DEBUG translate_to_english status:", response.status_code)
-    try:
-        response_json = response.json()
-        st.write("DEBUG translate_to_english raw response:", json.dumps(response_json, indent=2, ensure_ascii=False))
-    except Exception as e:
-        st.write("DEBUG translate_to_english JSON parse error:", str(e))
-        st.write("DEBUG translate_to_english raw text:", response.text)
-        raise
-
     response.raise_for_status()
 
     try:
+        response_json = response.json()
         return response_json["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        st.write("DEBUG translate_to_english parse error:", str(e))
+    except Exception:
         return text  # fallback: возвращаем оригинал
 
 
@@ -439,24 +425,14 @@ def translate_from_english(text: str, lang: str) -> str:
     }
 
     response = requests.post(url, headers=headers, json=data)
-
-    # логирование
-    st.write("DEBUG translate_from_english status:", response.status_code)
-    try:
-        response_json = response.json()
-        st.write("DEBUG translate_from_english raw response:", json.dumps(response_json, indent=2, ensure_ascii=False))
-    except Exception as e:
-        st.write("DEBUG translate_from_english JSON parse error:", str(e))
-        st.write("DEBUG translate_from_english raw text:", response.text)
-        raise
-
     response.raise_for_status()
 
     try:
+        response_json = response.json()
         return response_json["choices"][0]["message"]["content"].strip()
-    except Exception as e:
-        st.write("DEBUG translate_from_english parse error:", str(e))
+    except Exception:
         return text
+
 
 
 def get_ai_response(answers, lang="en"):
@@ -988,7 +964,7 @@ with tabs[1]:
         st.session_state["tab2_qas"] = list(zip(ld["questions"], user_answers))  # сохраняем Q&A
 
     if "tab2_ai_response" in st.session_state:
-        st.write(t["ai_response"])
+        st.subheader(t["ai_response"])
         st.write(st.session_state["tab2_ai_response"])
 
         # кнопка сохранить (скачать) — генерируем PDF и показываем кнопку

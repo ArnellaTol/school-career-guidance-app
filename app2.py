@@ -767,6 +767,18 @@ with tabs[1]:
     if "tab2_ai_response" in st.session_state:
         st.write(t["ai_response"])
         st.write(st.session_state["tab2_ai_response"])
+        pdf_buffer = save_tab2_results_to_pdf(
+        t["questions"],  # вопросы
+        [st.session_state.get(f"answer_{i}", "") for i in range(len(t["questions"]))],  # ответы ученика
+        st.session_state["tab2_ai_response"],  # ответ ИИ
+        lang
+        )
+        st.download_button(
+        label={"ru": "Сохранить в PDF", "en": "Save as PDF", "kz": "PDF сақтау"}[lang],
+        data=pdf_buffer,
+        file_name="tab2_results.pdf",
+        mime="application/pdf"
+        )
 
 
 # TAB 3
@@ -774,20 +786,25 @@ with tabs[2]:
     with st.form("career_form"):
         st.title(t["advisor"])
         student_question = st.text_area(t["student_question"], height=100, key="student_q")
-        use_rag = st.toggle(t["rag_toggle"], value=True)
+        
 
         submit_tab3 = st.form_submit_button(t["get_advice"])
 
     if submit_tab3:
-        if use_rag:
-            st.session_state["tab3_base"] = generate_career_advice(student_question)
-            st.session_state["tab3_rag"] = generate_rag_career_advice(student_question, embedder, annoy_index, texts)
-        else:
-            st.session_state["tab3_base"] = generate_career_advice(student_question)
-
-    if "tab3_base" in st.session_state:
-        st.subheader(t["base_model"])
-        st.write(st.session_state["tab3_base"])
-    if use_rag and "tab3_rag" in st.session_state:
+        st.session_state["tab3_rag"] = generate_rag_career_advice(student_question, embedder, annoy_index, texts)
+        
+    if "tab3_rag" in st.session_state:
         st.subheader(t["rag_model"])
         st.write(st.session_state["tab3_rag"])
+        pdf_buffer = save_tab3_results_to_pdf(
+        st.session_state["student_q"],
+        st.session_state["tab3_rag"],
+        lang
+       )
+        st.download_button(
+        label={"ru": "Сохранить в PDF", "en": "Save as PDF", "kz": "PDF сақтау"}[lang],
+        data=pdf_buffer,
+        file_name="tab3_results.pdf",
+        mime="application/pdf"
+        )
+

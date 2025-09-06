@@ -303,6 +303,7 @@ def adjust_probabilities(probabilities, thresholds):
 def display_results(df, lang_meta_dict, type_columns_dict):
     results = {key: df[key].values[0] for key in df.columns}
     adjusted = adjust_probabilities(results, thresholds)
+
     # selected types where adjusted >= 100
     selected_types = [type_columns_dict.get(k, k) for k, v in adjusted.items() if v >= 100]
 
@@ -310,13 +311,25 @@ def display_results(df, lang_meta_dict, type_columns_dict):
     for t_name in selected_types:
         st.write(f"- {t_name}")
 
-    # DataFrame for chart: use labels from lang_meta_dict["type"] and ["probability"]
+    # создаем DataFrame
+    types_list = [type_columns_dict.get(k, k) for k in adjusted.keys()]
+    probs_list = list(adjusted.values())
+
     chart_data = pd.DataFrame({
-        lang_meta_dict["type"]: [type_columns_dict.get(k, k) for k in adjusted.keys()],
-        lang_meta_dict["probability"]: list(adjusted.values())
+        lang_meta_dict["type"]: types_list,
+        lang_meta_dict["probability"]: probs_list
     })
+
+    # фиксируем порядок категорий как в таблице
+    chart_data[lang_meta_dict["type"]] = pd.Categorical(
+        chart_data[lang_meta_dict["type"]],
+        categories=types_list,
+        ordered=True
+    )
+
     st.dataframe(chart_data, use_container_width=True)
     st.bar_chart(chart_data.set_index(lang_meta_dict["type"]))
+
 
 def get_ai_response(answers):
     url = "https://api.openai.com/v1/chat/completions"
@@ -736,8 +749,8 @@ with tabs[2]:
     if submit_tab3:
         rag_answer = generate_rag_career_advice(student_question, embedder, annoy_index, texts)
         st.session_state["tab3_rag"] = rag_answer
-        # save student question into session for PDF
-        st.session_state["student_q"] = student_question
+        # # save student question into session for PDF
+        # st.session_state["student_q"] = student_question
 
     if "tab3_rag" in st.session_state:
         st.subheader(t["rag_model"])

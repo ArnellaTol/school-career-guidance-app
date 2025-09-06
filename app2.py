@@ -11,7 +11,7 @@ from huggingface_hub import InferenceClient, login
 from sentence_transformers import SentenceTransformer
 from annoy import AnnoyIndex
 from streamlit_option_menu import option_menu
-import pdfkit
+from weasyprint import HTML
 import io
 
 # ==========================
@@ -417,7 +417,7 @@ def generate_rag_career_advice(question: str, embedder, annoy_index, texts: list
 # ==========================
 
 def save_page_to_pdf(html_content):
-    pdf_bytes = pdfkit.from_string(html_content, False)
+    pdf_bytes = HTML(string=html_content).write_pdf()
     return io.BytesIO(pdf_bytes)
 
 # ==========================

@@ -141,8 +141,8 @@ column_names_dict_kz = {
     'kaz_hist_7': 'Қазақстан тарихы', 'art_7': 'Бейнелеу өнері', 'pe_7': 'Дене шынықтыру',
     'geography_7': 'География', 'biology_7': 'Биология', 'chemistry_7': 'Химия',
     'physics_7': 'Физика', 'world_hist_7': 'Дүниежүзі тарихы',
-    'Activist': 'Белсенді', 'Career': 'Мамандық таңдаушы', 'Tester': 'Тексеруші',
-    'Creator': 'Жасаушы', 'Designer': 'Дизайнер', 'Researcher': 'Зерттеуші',
+    'Activist': 'Белсенді', 'Career': 'Мансапқор', 'Tester': 'Тексеруші',
+    'Creator': 'Жасаушы', 'Designer': 'Жоспарлаушы', 'Researcher': 'Зерттеуші',
     'kaz_lang_8': 'Қазақ тілі', 'liter_8': 'Әдебиет', 'rus_lang_8': 'Орыс тілі',
     'eng_lang_8': 'Ағылшын тілі', 'math_8': 'Математика', 'comps_8': 'Информатика',
     'kaz_hist_8': 'Қазақстан тарихы', 'art_8': 'Бейнелеу өнері', 'pe_8': 'Дене шынықтыру',
@@ -1105,13 +1105,14 @@ with tabs[2]:
 
 # Типы личности и переводы
 type_labels = {
-    "A": {"ru": "Активист", "en": "Activist", "kz": "Активист"},
-    "T": {"ru": "Творец", "en": "Creator", "kz": "Шығармашыл"},
-    "P": {"ru": "Проектировщик", "en": "Planner", "kz": "Жоспарлаушы"},
+    "A": {"ru": "Активист", "en": "Activist", "kz": "Белсенді"},
     "K": {"ru": "Карьерист", "en": "Careerist", "kz": "Мансапқор"},
-    "Ip": {"ru": "Испытатель", "en": "Challenger", "kz": "Сынақшы"},
+    "Ip": {"ru": "Испытатель", "en": "Tester", "kz": "Сынақшы"},
+    "T": {"ru": "Творец", "en": "Creator", "kz": "Жасаушы"},
+    "P": {"ru": "Проектировщик", "en": "Designer", "kz": "Жоспарлаушы"},
     "Il": {"ru": "Исследователь", "en": "Researcher", "kz": "Зерттеуші"},
 }
+
 
 questions = [
     {
@@ -1412,17 +1413,29 @@ with tabs[3]:
             st.write("✅", type_labels[code][lang])
 
         # Диаграмма
-        fig, ax = plt.subplots()
-        ax.bar(
+        fig, ax = plt.subplots(figsize=(8, 5))  # увеличим размер графика
+        bars = ax.bar(
         [type_labels[c][lang] for c in scores.keys()],
-        scores.values()
+        scores.values(),
+        width=0.5  # уменьшим ширину колонок, чтобы между ними было больше места
         )
+
         ax.set_ylabel({
-        "ru": "Баллы",
-        "en": "Scores",
-        "kz": "Ұпайлар"
+            "ru": "Баллы",
+            "en": "Scores",
+            "kz": "Ұпайлар"
         }[lang])
+
+        # Увеличим отступы между метками оси X
+        ax.set_xticks(range(len(scores)))
+        ax.set_xticklabels(
+            [type_labels[c][lang] for c in scores.keys()],
+            rotation=20,   # чуть повернём, чтобы не налезали
+            ha="right"
+        )
+
         st.pyplot(fig)
+
 
 
 

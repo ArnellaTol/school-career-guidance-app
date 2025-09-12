@@ -228,7 +228,7 @@ translations = {
         "rag_toggle": "Enable RAG",
         "get_advice": "Get advice",
         "base_model": "💡 Base model",
-        "rag_model": "📚 AI RAG Model",
+        "rag_model": "RAG model response:",
         "expander": "Grades for {grade} grade",
         "questions": lang_meta["en"]["questions"]
     },
@@ -236,7 +236,7 @@ translations = {
         "header": "ИИ программа для школьной профориентации",
         "tab1": "Школьные оценки",
         "tab2": "Открытые вопросы",
-        "tab3": "AI профориентатор",
+        "tab3": "ИИ профориентатор",
         "tab4": "Тест на мотивационный тип",
         "choose_type": "Выберите свой мотивационный тип:",
         "go_to_tab": "Если вы не знаете свой тип, перейдите на вкладку 'Тест на мотивационный тип'.",
@@ -244,12 +244,12 @@ translations = {
         "most_suitable": "Наиболее подходящие типы:",
         "get_answer": "Получить ответ",
         "ai_response": "Ответ ИИ:",
-        "advisor": "Профориентационный AI ассистент",
+        "advisor": "Профориентационный ИИ ассистент",
         "student_question": "Введите ваш вопрос:",
         "rag_toggle": "Включить RAG",
         "get_advice": "Получить совет",
         "base_model": "💡 Базовая модель",
-        "rag_model": "📚 ИИ RAG модель",
+        "rag_model": "Ответ RAG модели:",
         "expander": "Оценки за {grade} класс",
         "questions": lang_meta["ru"]["questions"]
     },
@@ -270,7 +270,7 @@ translations = {
         "rag_toggle": "RAG қосу",
         "get_advice": "Кеңес алу",
         "base_model": "💡 Негізгі модель",
-        "rag_model": "📚 ЖИ RAG моделі",
+        "rag_model": "RAG модельінің жауабы:",
         "expander": "{grade} сынып бағалары",
         "questions": lang_meta["kz"]["questions"]
     }

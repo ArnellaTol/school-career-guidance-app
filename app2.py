@@ -223,12 +223,12 @@ translations = {
         "most_suitable": "Most suitable types:",
         "get_answer": "Get answer",
         "ai_response": "AI Response:",
-        "advisor": "🎓 Career Guidance AI Assistant",
+        "advisor": "Career Guidance AI Assistant",
         "student_question": "Enter your question:",
         "rag_toggle": "Enable RAG",
         "get_advice": "Get advice",
         "base_model": "💡 Base model",
-        "rag_model": "📚 Model with RAG",
+        "rag_model": "📚 AI RAG Model",
         "expander": "Grades for {grade} grade",
         "questions": lang_meta["en"]["questions"]
     },
@@ -244,12 +244,12 @@ translations = {
         "most_suitable": "Наиболее подходящие типы:",
         "get_answer": "Получить ответ",
         "ai_response": "Ответ ИИ:",
-        "advisor": "🎓 Профориентационный AI ассистент",
+        "advisor": "Профориентационный AI ассистент",
         "student_question": "Введите ваш вопрос:",
         "rag_toggle": "Включить RAG",
         "get_advice": "Получить совет",
         "base_model": "💡 Базовая модель",
-        "rag_model": "📚 Модель с RAG",
+        "rag_model": "📚 ИИ RAG модель",
         "expander": "Оценки за {grade} класс",
         "questions": lang_meta["ru"]["questions"]
     },
@@ -265,12 +265,12 @@ translations = {
         "most_suitable": "Ең қолайлы түрлері:",
         "get_answer": "Жауап алу",
         "ai_response": "ЖИ жауабы:",
-        "advisor": "🎓 Кәсіби бағдар беретін ЖИ ассистенті",
+        "advisor": "Кәсіби бағдар беретін ЖИ ассистенті",
         "student_question": "Сұрағыңызды енгізіңіз:",
         "rag_toggle": "RAG қосу",
         "get_advice": "Кеңес алу",
         "base_model": "💡 Негізгі модель",
-        "rag_model": "📚 RAG моделі",
+        "rag_model": "📚 ЖИ RAG моделі",
         "expander": "{grade} сынып бағалары",
         "questions": lang_meta["kz"]["questions"]
     }
@@ -784,7 +784,7 @@ tabs = st.tabs([t["tab1"], t["tab2"], t["tab3"], t["tab4"]])
 # ------------------------
 # TAB 1 - Grades
 with tabs[0]:
-    st.title({
+    st.subheader({
     "en": "Career type prediction from school grades",
     "ru": "Определение типа профессиональной направленности по школьным оценкам",
     "kz": "Мектептегі бағалардан кәсіби бағыттау түрін анықтау"
@@ -960,7 +960,7 @@ A newer type reflecting labor market demand
 # ------------------------
 # TAB 2 - Open questions
 with tabs[1]:
-    st.title({
+    st.subheader({
     "en": "Personalized career advice based on your answers",
     "ru": "Персональные советы по выбору профессии на основе ваших ответов",
     "kz": "Жауаптарыңызға негізделген жеке кәсіби кеңес"
@@ -999,11 +999,9 @@ with tabs[1]:
 # ------------------------
 # TAB 3 - AI career (RAG only)
 with tabs[2]:
-    with st.form("career_form"):
-        st.title(t["advisor"])
-
-        # мини-описание RAG
-        st.markdown({
+    st.subheader(t["advisor"])
+    # мини-описание RAG
+    st.markdown({
     "en": "Here you can ask follow-up questions based on the career advice you’ve already received. "
           "The system uses RAG (Retrieval-Augmented Generation), which means it retrieves information "
           "from a prepared knowledge base and then generates answers. This helps provide more focused, "
@@ -1018,7 +1016,7 @@ with tabs[2]:
           "яғни дайын білім қорынан ақпарат алып, жауап құрастырады. "
           "Бұл интернеттегі кездейсоқ ақпарат емес, нақтыланған әрі жекелендірілген нұсқауларды ұсынады."
         }[lang])
-
+    with st.form("career_form"):
         # --- Expander с рекомендациями ---
         with st.expander({"ru": "Рекомендации по формулировке вопроса", 
                           "en": "Recommendations for formulating your question",
@@ -1396,12 +1394,12 @@ questions = [
 
 
 with tabs[3]:
-    st.title({
+    st.subheader({
     "ru": "Тест на мотивационный тип личности",
     "en": "Motivational Personality Type Test",
     "kz": "Мотивациялық тұлға типі тесті"
     }[lang])
-    st.write({
+    st.markdown({
     "ru": "Отметь галочкой утверждения, которые соответствуют твоему поведению. В конце ты увидишь, какой у тебя мотивационный тип личности по Битяновой.",
     "en": "Check the statements that correspond to your behavior. At the end, you will see your motivational personality type according to Bitianova.",
     "kz": "Өзіңнің мінез-құлқыңа сәйкес келетін мәлімдемелерді белгілеңіз. Соңында сіз Битяноваға сәйкес мотивациялық тұлға типіңізді көресіз."
@@ -1460,6 +1458,12 @@ with tabs[3]:
         )
 
         st.pyplot(fig)
+
+        st.write({
+        "ru": "Теперь вы знаете свой мотивационный тип личности по Битяновой. Вернитесь на вкладку «Школьные оценки», чтобы увидеть, какие профессии вам подходят.",
+        "en": "Now you know your motivational personality type according to Bitianova. Go back to the 'School grades' tab to see which professions suit you.",
+        "kz": "Енді сіз Битяноваға сәйкес мотивациялық тұлға типіңізді білесіз. Сізге сәйкес келетін мамандықтарды көру үшін «Мектеп бағалары» қойындысына оралыңыз."
+        }[lang])
 
 
 

@@ -218,6 +218,7 @@ translations = {
         "tab3": "AI career assistant",
         "tab4": "Motivational type test",
         "choose_type": "Choose your motivational type:",
+        "go_to_tab": "If you don't know your type, go to the 'Motivational type test' tab.",
         "get_result": "Get result",
         "most_suitable": "Most suitable types:",
         "get_answer": "Get answer",
@@ -238,6 +239,7 @@ translations = {
         "tab3": "AI профориентатор",
         "tab4": "Тест на мотивационный тип",
         "choose_type": "Выберите свой мотивационный тип:",
+        "go_to_tab": "Если вы не знаете свой тип, перейдите на вкладку 'Тест на мотивационный тип'.",
         "get_result": "Получить результат",
         "most_suitable": "Наиболее подходящие типы:",
         "get_answer": "Получить ответ",
@@ -258,6 +260,7 @@ translations = {
         "tab3": "ЖИ кәсіби бағдаршы",
         "tab4": "Мотивациялық типті тест",
         "choose_type": "Өз мотивациялық типіңізді таңдаңыз:",
+        "go_to_tab": "Егер сіз өз типіңізді білмесеңіз, 'Мотивациялық типті тест' қойындысына өтіңіз.",
         "get_result": "Нәтиже алу",
         "most_suitable": "Ең қолайлы түрлері:",
         "get_answer": "Жауап алу",
@@ -781,8 +784,19 @@ tabs = st.tabs([t["tab1"], t["tab2"], t["tab3"], t["tab4"]])
 # ------------------------
 # TAB 1 - Grades
 with tabs[0]:
+    st.title({
+    "en": "Career type prediction from school grades",
+    "ru": "Определение типа профессиональной направленности по школьным оценкам",
+    "kz": "Мектептегі бағалардан кәсіби бағыттау түрін анықтау"
+    }[lang])
+    st.markdown({
+    "en": "Enter your grades for grades 7-10 and select your motivational type.",
+    "ru": "Укажите свои оценки за 7-10 классы и выберите свой мотивационный тип.",
+    "kz": "7-10 сыныптардағы бағаларыңызды енгізіп, мотивациялық типіңізді таңдаңыз."
+    }[lang])
     with st.form("grades_form"):
         st.write(f"**{t['choose_type']}**")
+        st.write(f"{t['go_to_tab']}")
         selected_checkboxes = {
             col: st.checkbox(current_column_names[col]) for col in checkbox_columns
         }
@@ -832,7 +846,7 @@ with tabs[0]:
                 st.warning({"ru": "Нет результатов для сохранения", "en": "No results to save", "kz": "Сақтауға нәтиже жоқ"}[lang])
 
         if lang == "ru":
-            st.title("Типы профессиональной деятельности")
+            st.title("Типы профессиональной направленности")
             st.markdown("""
 **1. ЧЕЛОВЕК-ЖИВАЯ ПРИРОДА (П).**  
 Представители этого типа имеют дело с растительными и живыми организмами, микроорганизмами и условиями их существования  
@@ -869,7 +883,7 @@ with tabs[0]:
 Сюда относятся специальности: *менеджеры, биржевые маклеры, аудиторы, брокеры, дилеры и другие профессии, связанные с коммерческой деятельностью*.
 """)
         elif lang == "en":
-            st.title("Types of professional activities")
+            st.title("Types of professional orientation")
             st.markdown("""
 **1. HUMAN–NATURE (N).**  
 Work with plants, animals, microorganisms, and their living conditions  
@@ -906,7 +920,7 @@ A newer type reflecting labor market demand
 *(managers, brokers, dealers, auditors, entrepreneurs)*.
 """)
         elif lang == "kz":
-            st.title("Кәсіби қызмет түрлері")
+            st.title("Кәсіби бағдар беру түрлері")
             st.markdown("""
 **1. АДАМ–ТІРІ ТАБИҒАТ (Т).**  
 Өсімдіктермен, жануарлармен, микроорганизмдермен және олардың тіршілік жағдайларымен жұмыс  
@@ -946,6 +960,17 @@ A newer type reflecting labor market demand
 # ------------------------
 # TAB 2 - Open questions
 with tabs[1]:
+    st.title({
+    "en": "Personalized career advice based on your answers",
+    "ru": "Персональные советы по выбору профессии на основе ваших ответов",
+    "kz": "Жауаптарыңызға негізделген жеке кәсіби кеңес"
+    }[lang])
+    st.markdown({
+    "en": "Answer the following questions about your interests, strengths, and dislikes. Based on your answers, the AI will provide personalized career advice.", 
+    "ru": "Ответьте на следующие вопросы о ваших интересах, сильных сторонах и нелюбимых занятиях. На основе ваших ответов ИИ предоставит персональные советы по выбору профессии.",
+    "kz": "Қызығушылықтарыңыз, күшті жақтарыңыз және ұнатпайтын істеріңіз туралы келесі сұрақтарға жауап беріңіз. Жауаптарыңызға негізделген ЖИ сізге жеке кәсіби кеңес береді."
+    }[lang])
+
     with st.form("open_questions_form"):
         user_answers = [st.text_input(q, key=f"answer_{i}") for i, q in enumerate(ld["questions"])]
         submit_tab2 = st.form_submit_button(t["get_answer"])

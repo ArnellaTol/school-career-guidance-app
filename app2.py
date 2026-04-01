@@ -218,6 +218,7 @@ translations = {
         "tab3": "AI career assistant",
         "tab4": "Motivational type test",
         "choose_type": "Choose your motivational type:",
+        "current_grade_label": "What grade are you currently in?",
         "go_to_tab": "If you don't know your type, go to the 'Motivational type test' tab.",
         "get_result": "Get result",
         "most_suitable": "Most suitable types:",
@@ -239,6 +240,7 @@ translations = {
         "tab3": "ИИ профориентатор",
         "tab4": "Тест на мотивационный тип",
         "choose_type": "Выберите свой мотивационный тип:",
+        "current_grade_label": "В каком вы сейчас классе?",
         "go_to_tab": "Если вы не знаете свой тип, перейдите на вкладку 'Тест на мотивационный тип'.",
         "get_result": "Получить результат",
         "most_suitable": "Наиболее подходящие типы:",
@@ -260,6 +262,7 @@ translations = {
         "tab3": "ЖИ кәсіби бағдаршы",
         "tab4": "Мотивациялық типті тест",
         "choose_type": "Өз мотивациялық типіңізді таңдаңыз:",
+        "current_grade_label": "Қазір қай сыныпта оқисыз?",
         "go_to_tab": "Егер сіз өз типіңізді білмесеңіз, 'Мотивациялық типті тест' қойындысына өтіңіз.",
         "get_result": "Нәтиже алу",
         "most_suitable": "Ең қолайлы түрлері:",
@@ -286,6 +289,38 @@ def create_expander(class_label, cols, lang_meta_dict, column_names_dict, input_
             input_values[col] = st.number_input(
                 column_names_dict[col], min_value=2, max_value=5, step=1, value=5, key=col
             )
+
+def get_available_grades(current_grade):
+    """Возвращает список классов, доступных для ручного ввода."""
+    if current_grade == "7":
+        return [7]
+    if current_grade == "8":
+        return [7, 8]
+    if current_grade == "9":
+        return [7, 8, 9]
+    # 10-12
+    return [7, 8, 9, 10]
+
+
+def get_grade_subjects(grade, column_names_dict):
+    """Возвращает список ключей предметов для класса grade."""
+    return [col for col in inp_col_names if col.endswith(f"_{grade}") and col in column_names_dict]
+
+
+def autofill_grades(prev_grade, next_grade, input_values, column_names_dict):
+    """Автозаполняет оценки next_grade по данным prev_grade."""
+    prev_subjects = get_grade_subjects(prev_grade, column_names_dict)
+    next_subjects = get_grade_subjects(next_grade, column_names_dict)
+
+    prev_map = {subj.rsplit("_", 1)[0]: input_values.get(subj, 5) for subj in prev_subjects}
+
+    filled = {}
+    for subj in next_subjects:
+        slim = subj.rsplit("_", 1)[0]
+        filled[subj] = prev_map.get(slim, 5)
+
+    return filled
+
 
 def save_to_dataframe(selected_checkboxes, input_values):
     data = {**selected_checkboxes, **input_values}
@@ -779,8 +814,375 @@ login_hf()
 embedder, annoy_index, texts = load_annoy_index(rag_data)
 
 st.header(t["header"])
-tabs = st.tabs([t["tab1"], t["tab2"], t["tab3"], t["tab4"]])
+tabs = st.tabs([t["tab4"], t["tab1"], t["tab2"], t["tab3"]])
 
+# ------------------------
+# TAB 1 - Grades
+with tabs[1]:
+    st.subheader({
+    "en": "Career type prediction from school grades",
+    "ru": "Определение типа профессиональной направленности по школьным оценкам",
+    "kz": "Мектептегі бағалардан кәсіби бағыттау түрін анықтау"
+    }[lang])
+    st.markdown({
+    "en": "Enter your grades for grades 7-10 and select your motivational type.",
+    "ru": "Укажите свои оценки за 7-10 классы и выберите свой мотивационный тип.",
+    "kz": "7-10 сыныптардағы бағаларыңызды енгізіп, мотивациялық типіңізді таңдаңыз."
+    }[lang])
+    with st.form("grades_form"):
+        st.write(f"**{t['choose_type']}**")
+        st.write(f"{t['go_to_tab']}")
+
+        current_grade_label = st.selectbox(
+            t.get('current_grade_label', ld.get('current_grade_label', 'В каком вы сейчас классе?')),
+            options=["7", "8", "9", "10-12"],
+            label_visibility="visible",
+            key="current_grade_label"
+        )
+
+        selected_checkboxes = {
+            col: st.checkbox(current_column_names[col]) for col in checkbox_columns
+        }
+
+        available_grades = get_available_grades(current_grade_label)
+
+        for grade in available_grades:
+            create_expander(
+                grade,
+                [c for c in inp_col_names if c.endswith(f"_{grade}")],
+                ld,
+                current_column_names,
+                input_values
+            )
+
+        # Автозаполнение недоступных классов
+        for grade in range(7, 11):
+            if grade not in available_grades:
+                prev_grade = grade - 1
+                if prev_grade < 7:
+                    continue
+                if prev_grade not in available_grades and prev_grade >= 7:
+                    # если предыдущий класс уже автозаполнен, он уже должен быть в input_values
+                    pass
+                autofilled = autofill_grades(prev_grade, grade, input_values, current_column_names)
+                input_values.update(autofilled)
+
+        submit_tab1 = st.form_submit_button(t["get_result"])
+
+    if submit_tab1:
+        df = save_to_dataframe(selected_checkboxes, input_values)
+        try:
+            result_df = apply_model("random_forest_model.pkl", df)
+        except Exception as e:
+            st.error(f"Error applying model: {e}")
+            result_df = None
+        st.session_state["tab1_results"] = result_df
+
+    if "tab1_results" in st.session_state and st.session_state["tab1_results"] is not None:
+        if lang == "ru":
+            type_columns_dict = type_columns_ru
+        elif lang == "kz":
+            type_columns_dict = type_columns_kz
+        else:
+            type_columns_dict = type_columns_en
+
+        chart_image_buf = display_results(st.session_state["tab1_results"], ld, type_columns_dict)
+
+        if "tab1_results" in st.session_state and st.session_state["tab1_results"] is not None:
+            html = st.session_state["tab1_results"].to_html()
+            pdf_buffer = save_tab1_to_pdf(
+                st.session_state["tab1_results"],
+                chart_image_buf,
+                lang
+            )
+            st.download_button(
+                label={"ru": "Скачать PDF", "en": "Download PDF", "kz": "PDF жүктеу"}[lang],
+                data=pdf_buffer,
+                file_name="prof_type_results.pdf",
+                mime="application/pdf"
+            )
+        else:
+                st.warning({"ru": "Нет результатов для сохранения", "en": "No results to save", "kz": "Сақтауға нәтиже жоқ"}[lang])
+
+        if lang == "ru":
+            st.title("Типы профессиональной направленности")
+            st.markdown("""
+**1. ЧЕЛОВЕК-ЖИВАЯ ПРИРОДА (П).**  
+Представители этого типа имеют дело с растительными и живыми организмами, микроорганизмами и условиями их существования  
+*(агроном, ветврач, полевод, животновод, кинолог, фермер, геолог)*.
+
+---
+
+**2. ЧЕЛОВЕК-ТЕХНИКА И НЕЖИВАЯ ПРИРОДА (Т).**  
+Работники имеют дело с неживыми и техническими объектами труда  
+*(слесарь, автомеханик, водитель, инженер, моторист, плотник, штукатур, сварщик, конструктор, контролер, физик, химик)*.
+
+---
+
+**3. ЧЕЛОВЕК-ЧЕЛОВЕК (Ч).**  
+Предметом интереса, распознания, обслуживания, преобразования здесь являются социальные системы, сообщества, группы населения, люди разного возраста  
+*(учитель, менеджер, врач, страховой агент, воспитатель, няня, продавец, социальный работник, массажист, психолог)*.
+
+---
+
+**4. ЧЕЛОВЕК-ЗНАКОВАЯ СИСТЕМА (З).**  
+Естественные и искусственные языки, условные знаки, символы, формулы — вот предметные миры, которые занимают представителей этого типа  
+*(бухгалтер, программист, оператор ПК, радиомонтажник, экономист, телефонист, машинистка, переводчик, кассир)*.
+
+---
+
+**5. ЧЕЛОВЕК-ХУДОЖЕСТВЕННЫЙ ОБРАЗ (Х).**  
+Явления, факты художественного отображения действительности — вот что занимает представителей этого типа  
+*(артист, дирижер, художник, маляр, портной, повар, парикмахер, музыкант, архитектор)*.
+
+---
+
+**6. ЧЕЛОВЕК-БИЗНЕС (Б).**  
+Выделен в последнее время в связи с потребностью рынка труда.  
+Сюда относятся специальности: *менеджеры, биржевые маклеры, аудиторы, брокеры, дилеры и другие профессии, связанные с коммерческой деятельностью*.
+""")
+        elif lang == "en":
+            st.title("Types of professional orientation")
+            st.markdown("""
+**1. HUMAN–NATURE (N).**  
+Work with plants, animals, microorganisms, and their living conditions  
+*(agronomist, veterinarian, farmer, dog handler, geologist)*.
+
+---
+
+**2. HUMAN–TECHNOLOGY (T).**  
+Work with inanimate objects and technical systems  
+*(mechanic, driver, engineer, carpenter, welder, constructor, physicist, chemist)*.
+
+---
+
+**3. HUMAN–HUMAN (H).**  
+Work with people, communities, social systems  
+*(teacher, manager, doctor, nanny, salesperson, psychologist, social worker)*.
+
+---
+
+**4. HUMAN–SIGN SYSTEMS (S).**  
+Work with languages, signs, symbols, codes, formulas  
+*(accountant, programmer, operator, economist, translator, cashier)*.
+
+---
+
+**5. HUMAN–ARTISTIC IMAGE (A).**  
+Work with artistic creation and representation of reality  
+*(actor, conductor, painter, tailor, chef, musician, architect)*.
+
+---
+
+**6. HUMAN–BUSINESS (B).**  
+A newer type reflecting labor market demand  
+*(managers, brokers, dealers, auditors, entrepreneurs)*.
+""")
+        elif lang == "kz":
+            st.title("Кәсіби бағдар беру түрлері")
+            st.markdown("""
+**1. АДАМ–ТІРІ ТАБИҒАТ (Т).**  
+Өсімдіктермен, жануарлармен, микроорганизмдермен және олардың тіршілік жағдайларымен жұмыс  
+*(агроном, ветеринар, малшы, кинолог, фермер, геолог)*.
+
+---
+
+**2. АДАМ–ТЕХНИКА ЖӘНЕ ӨЛІ ТАБИҒАТ (Т).**  
+Өлі және техникалық еңбек объектілерімен жұмыс  
+*(слесарь, механик, жүргізуші, инженер, ағаш ұстасы, дәнекерлеуші, физик, химик)*.
+
+---
+
+**3. АДАМ–АДАМ (А).**  
+Қоғамдық жүйелермен, қауымдармен, әртүрлі жастағы адамдармен жұмыс  
+*(мұғалім, менеджер, дәрігер, тәрбиеші, сатушы, әлеуметтік қызметкер, массажист, психолог)*.
+
+---
+
+**4. АДАМ–БЕЛГІЛІК ЖҮЙЕ (Б).**  
+Тілдермен, таңбалармен, формулалармен жұмыс  
+*(бухгалтер, бағдарламашы, экономист, аудармашы, кассир)*.
+
+---
+
+**5. АДАМ–КӨРКЕМ БЕЙНЕ (К).**  
+Шығармашылық, өнер арқылы шындықты бейнелеу  
+*(әртіс, дирижер, суретші, тігінші, аспаз, музыкант, сәулетші)*.
+
+---
+
+**6. АДАМ–БИЗНЕС (Б).**  
+Еңбек нарығының сұранысына байланысты жаңа бағыт  
+*(менеджерлер, брокерлер, дилерлер, аудиторлар, кәсіпкерлер)*.
+""")
+        
+# ------------------------
+# TAB 2 - Open questions
+with tabs[2]:
+    st.subheader({
+    "en": "Personalized career advice based on your answers",
+    "ru": "Персональные советы по выбору профессии на основе ваших ответов",
+    "kz": "Жауаптарыңызға негізделген жеке кәсіби кеңес"
+    }[lang])
+    st.markdown({
+    "en": "Answer the following questions about your interests, strengths, and dislikes. Based on your answers, the AI will provide personalized career advice.", 
+    "ru": "Ответьте на следующие вопросы о ваших интересах, сильных сторонах и нелюбимых занятиях. На основе ваших ответов ИИ предоставит персональные советы по выбору профессии.",
+    "kz": "Қызығушылықтарыңыз, күшті жақтарыңыз және ұнатпайтын істеріңіз туралы келесі сұрақтарға жауап беріңіз. Жауаптарыңызға негізделген ЖИ сізге жеке кәсіби кеңес береді."
+    }[lang])
+
+    with st.form("open_questions_form"):
+        user_answers = [st.text_input(q, key=f"answer_{i}") for i, q in enumerate(ld["questions"])]
+        submit_tab2 = st.form_submit_button(t["get_answer"])
+
+    if submit_tab2:
+        ai_response = get_ai_response(user_answers, lang=st.session_state["lang"])
+        st.session_state["tab2_ai_response"] = ai_response
+        st.session_state["tab2_qas"] = list(zip(ld["questions"], user_answers))  # сохраняем Q&A
+
+    if "tab2_ai_response" in st.session_state:
+        st.subheader(t["ai_response"])
+        st.write(st.session_state["tab2_ai_response"])
+
+        pdf_buffer = save_tab2_to_pdf(
+                st.session_state["tab2_qas"], 
+                st.session_state["tab2_ai_response"], 
+                lang
+            )
+        st.download_button(
+            label={"ru": "Сохранить в PDF", "en": "Save as PDF", "kz": "PDF сақтау"}[lang],
+            data=pdf_buffer,
+            file_name="open_questions_analysis.pdf",
+            mime="application/pdf"
+        )
+
+# ------------------------
+# TAB 3 - AI career (RAG only)
+with tabs[3]:
+    st.subheader(t["advisor"])
+    # мини-описание RAG
+    st.markdown({
+    "en": "Here you can ask follow-up questions based on the career advice you’ve already received. "
+          "The system uses RAG (Retrieval-Augmented Generation), which means it retrieves information "
+          "from a prepared knowledge base and then generates answers. This helps provide more focused, "
+          "reliable, and personalized guidance — not random information from the internet.",
+    "ru": "Здесь вы можете задать уточняющие вопросы на основе уже полученных советов. "
+          "Система использует RAG (Retrieval-Augmented Generation — генерация с дополнением поиска), "
+          "то есть извлекает информацию из подготовленной базы знаний и формирует ответ. "
+          "Это помогает давать более точные, надёжные и персонализированные рекомендации — "
+          "а не случайную информацию из интернета.",
+    "kz": "Мұнда сіз бұрын алған кеңестерге негізделген қосымша сұрақтар қоя аласыз. "
+          "Жүйе RAG (Retrieval-Augmented Generation — іздеумен толықтырылған генерация) тәсілін қолданады, "
+          "яғни дайын білім қорынан ақпарат алып, жауап құрастырады. "
+          "Бұл интернеттегі кездейсоқ ақпарат емес, нақтыланған әрі жекелендірілген нұсқауларды ұсынады."
+        }[lang])
+    with st.form("career_form"):
+        # --- Expander с рекомендациями ---
+        with st.expander({"ru": "Рекомендации по формулировке вопроса", 
+                          "en": "Recommendations for formulating your question",
+                          "kz": "Сұрақты құрастыру бойынша ұсыныстар"}[lang]):
+            if lang == "ru":
+                st.markdown("""
+                **Пример 1: Определение профильных предметов**  
+                Я хочу определиться с выбором двух профильных предметов из четырёх (физика, химия, биология, информатика).  
+                - Мне нравится делать: …  
+                - Мне не нравится делать: …  
+                - У меня хорошо получается: …  
+                - Мне сложно дается: …  
+                - Тип MBTI (не обязательно): …  
+                - Мотивационный тип (по Битяновой): …  
+                - Желаемая специальность: …  
+
+                **Пример 2: Определение специальности**  
+                Я хочу определиться с выбором специальности.  
+                - Я собираюсь выбрать (или уже выбрал) такие 2 профильных предмета из 4-х (физика, химия, биология, информатика): …  
+                - Мне нравится делать: …  
+                - Мне не нравится делать: …  
+                - У меня хорошо получается: …  
+                - Мне сложно дается: …  
+                - Тип MBTI (не обязательно): …  
+                - Мотивационный тип (по Битяновой): …  
+                
+                **Примечание:**
+                RAG отвечает на основе нашей проверенной внутренней базы знаний — это даёт персонализированные и согласованные рекомендации и лучше защищает вашу приватность.
+                Для самых свежих фактов (даты приёма, конкретные цены и т. п.) используйте официальные сайты.
+                """)
+            elif lang == "en":
+                st.markdown("""
+                **Example 1: Choosing school subjects**  
+                I want to decide on two profile subjects out of four (physics, chemistry, biology, computer science).  
+                - I enjoy doing: …  
+                - I don’t like doing: …  
+                - I am good at: …  
+                - I find it difficult to: …  
+                - MBTI type (optional): …  
+                - Motivational type (Bitianova): …  
+                - Desired major: …  
+
+                **Example 2: Choosing a major**  
+                I want to decide on my major.  
+                - I am going to choose (or have already chosen) two profile subjects out of four (physics, chemistry, biology, computer science): …  
+                - I enjoy doing: …  
+                - I don’t like doing: …  
+                - I am good at: …  
+                - I find it difficult to: …  
+                - MBTI type (optional): …  
+                - Motivational type (Bitianova): …  
+                            
+                **Note:**
+                The RAG model responds based on our vetted internal knowledge base — this provides personalized and consistent recommendations and better protects your privacy.
+                For the most up-to-date facts (admission dates, specific prices, etc.) please refer to official websites.
+                """)
+            else:  # kz
+                st.markdown("""
+                **1-мысал: Профильдік пәндерді таңдау**  
+                Мен төрт пәннің ішінен (физика, химия, биология, информатика) екі профильдік пәнді таңдағым келеді.  
+                - Маған ұнайтын істер: …  
+                - Маған ұнамайтын істер: …  
+                - Маған жақсы берілетіндер: …  
+                - Маған қиын берілетіндер: …  
+                - MBTI типі (міндетті емес): …  
+                - Мотивациялық тип (Битянова бойынша): …  
+                - Таңдағысы келетін мамандық: …  
+
+                **2-мысал: Мамандықты таңдау**  
+                Мен мамандық таңдағым келеді.  
+                - Мен төрт пәннің ішінен (физика, химия, биология, информатика) осындай 2 профильдік пәнді таңдадым (немесе таңдағалы жатырмын): …  
+                - Маған ұнайтын істер: …  
+                - Маған ұнамайтын істер: …  
+                - Маған жақсы берілетіндер: …  
+                - Маған қиын берілетіндер: …  
+                - MBTI типі (міндетті емес): …  
+                - Мотивациялық тип (Битянова бойынша): …  
+                            
+                **Ескерту:**
+                RAG біздің тексерілген ішкі білім базасына негізделген жауап береді — бұл жеке және үйлесімді ұсыныстар береді және сіздің құпиялылығыңызды жақсы қорғайды.
+                Ең соңғы деректер (қабылдау күндері, нақты бағалар және т.б.) үшін ресми сайттарға жүгініңіз.
+                """)
+
+        # --- Основное поле ввода ---
+        student_question = st.text_area(t["student_question"], height=100, key="student_q")
+
+        # --- Кнопка ---
+        submit_tab3 = st.form_submit_button(t["get_advice"])
+
+    if submit_tab3:
+        rag_answer = generate_rag_career_advice(student_question, embedder, annoy_index, texts, lang=st.session_state["lang"])
+        st.session_state["tab3_rag"] = rag_answer
+
+    if "tab3_rag" in st.session_state:
+        st.subheader(t["rag_model"])
+        st.write(st.session_state["tab3_rag"])
+        pdf_buffer = save_tab3_to_pdf(
+                st.session_state["student_q"], 
+                st.session_state["tab3_rag"], 
+                lang
+            )
+        st.download_button(
+            label={"ru": "Сохранить в PDF", "en": "Save as PDF", "kz": "PDF сақтау"}[lang],
+            data=pdf_buffer,
+            file_name="ai_response.pdf",
+            mime="application/pdf"
+        )
 
 
 # Типы личности и переводы
@@ -1050,7 +1452,7 @@ questions = [
 ]
 
 
-with tabs[3]:
+with tabs[0]:
     st.subheader({
     "ru": "Тест на мотивационный тип личности",
     "en": "Motivational Personality Type Test",
@@ -1121,356 +1523,6 @@ with tabs[3]:
         "en": "Now you know your motivational personality type according to Bitianova. Go back to the 'School grades' tab to see which professions suit you.",
         "kz": "Енді сіз Битяноваға сәйкес мотивациялық тұлға типіңізді білесіз. Сізге сәйкес келетін мамандықтарды көру үшін «Мектеп бағалары» қойындысына оралыңыз."
         }[lang])
-
-
-
-
-
-
-# ------------------------
-# TAB 1 - Grades
-with tabs[0]:
-    st.subheader({
-    "en": "Career type prediction from school grades",
-    "ru": "Определение типа профессиональной направленности по школьным оценкам",
-    "kz": "Мектептегі бағалардан кәсіби бағыттау түрін анықтау"
-    }[lang])
-    st.markdown({
-    "en": "Enter your grades for grades 7-10 and select your motivational type.",
-    "ru": "Укажите свои оценки за 7-10 классы и выберите свой мотивационный тип.",
-    "kz": "7-10 сыныптардағы бағаларыңызды енгізіп, мотивациялық типіңізді таңдаңыз."
-    }[lang])
-    with st.form("grades_form"):
-        st.write(f"**{t['choose_type']}**")
-        st.write(f"{t['go_to_tab']}")
-        selected_checkboxes = {
-            col: st.checkbox(current_column_names[col]) for col in checkbox_columns
-        }
-        for grade in [7, 8, 9, 10]:
-            create_expander(
-                grade,
-                [c for c in inp_col_names if c.endswith(f"_{grade}")],
-                ld,
-                current_column_names,
-                input_values
-            )
-        submit_tab1 = st.form_submit_button(t["get_result"])
-
-    if submit_tab1:
-        df = save_to_dataframe(selected_checkboxes, input_values)
-        try:
-            result_df = apply_model("random_forest_model.pkl", df)
-        except Exception as e:
-            st.error(f"Error applying model: {e}")
-            result_df = None
-        st.session_state["tab1_results"] = result_df
-
-    if "tab1_results" in st.session_state and st.session_state["tab1_results"] is not None:
-        if lang == "ru":
-            type_columns_dict = type_columns_ru
-        elif lang == "kz":
-            type_columns_dict = type_columns_kz
-        else:
-            type_columns_dict = type_columns_en
-
-        chart_image_buf = display_results(st.session_state["tab1_results"], ld, type_columns_dict)
-
-        if "tab1_results" in st.session_state and st.session_state["tab1_results"] is not None:
-            html = st.session_state["tab1_results"].to_html()
-            pdf_buffer = save_tab1_to_pdf(
-                st.session_state["tab1_results"],
-                chart_image_buf,
-                lang
-            )
-            st.download_button(
-                label={"ru": "Скачать PDF", "en": "Download PDF", "kz": "PDF жүктеу"}[lang],
-                data=pdf_buffer,
-                file_name="prof_type_results.pdf",
-                mime="application/pdf"
-            )
-        else:
-                st.warning({"ru": "Нет результатов для сохранения", "en": "No results to save", "kz": "Сақтауға нәтиже жоқ"}[lang])
-
-        if lang == "ru":
-            st.title("Типы профессиональной направленности")
-            st.markdown("""
-**1. ЧЕЛОВЕК-ЖИВАЯ ПРИРОДА (П).**  
-Представители этого типа имеют дело с растительными и живыми организмами, микроорганизмами и условиями их существования  
-*(агроном, ветврач, полевод, животновод, кинолог, фермер, геолог)*.
-
----
-
-**2. ЧЕЛОВЕК-ТЕХНИКА И НЕЖИВАЯ ПРИРОДА (Т).**  
-Работники имеют дело с неживыми и техническими объектами труда  
-*(слесарь, автомеханик, водитель, инженер, моторист, плотник, штукатур, сварщик, конструктор, контролер, физик, химик)*.
-
----
-
-**3. ЧЕЛОВЕК-ЧЕЛОВЕК (Ч).**  
-Предметом интереса, распознания, обслуживания, преобразования здесь являются социальные системы, сообщества, группы населения, люди разного возраста  
-*(учитель, менеджер, врач, страховой агент, воспитатель, няня, продавец, социальный работник, массажист, психолог)*.
-
----
-
-**4. ЧЕЛОВЕК-ЗНАКОВАЯ СИСТЕМА (З).**  
-Естественные и искусственные языки, условные знаки, символы, формулы — вот предметные миры, которые занимают представителей этого типа  
-*(бухгалтер, программист, оператор ПК, радиомонтажник, экономист, телефонист, машинистка, переводчик, кассир)*.
-
----
-
-**5. ЧЕЛОВЕК-ХУДОЖЕСТВЕННЫЙ ОБРАЗ (Х).**  
-Явления, факты художественного отображения действительности — вот что занимает представителей этого типа  
-*(артист, дирижер, художник, маляр, портной, повар, парикмахер, музыкант, архитектор)*.
-
----
-
-**6. ЧЕЛОВЕК-БИЗНЕС (Б).**  
-Выделен в последнее время в связи с потребностью рынка труда.  
-Сюда относятся специальности: *менеджеры, биржевые маклеры, аудиторы, брокеры, дилеры и другие профессии, связанные с коммерческой деятельностью*.
-""")
-        elif lang == "en":
-            st.title("Types of professional orientation")
-            st.markdown("""
-**1. HUMAN–NATURE (N).**  
-Work with plants, animals, microorganisms, and their living conditions  
-*(agronomist, veterinarian, farmer, dog handler, geologist)*.
-
----
-
-**2. HUMAN–TECHNOLOGY (T).**  
-Work with inanimate objects and technical systems  
-*(mechanic, driver, engineer, carpenter, welder, constructor, physicist, chemist)*.
-
----
-
-**3. HUMAN–HUMAN (H).**  
-Work with people, communities, social systems  
-*(teacher, manager, doctor, nanny, salesperson, psychologist, social worker)*.
-
----
-
-**4. HUMAN–SIGN SYSTEMS (S).**  
-Work with languages, signs, symbols, codes, formulas  
-*(accountant, programmer, operator, economist, translator, cashier)*.
-
----
-
-**5. HUMAN–ARTISTIC IMAGE (A).**  
-Work with artistic creation and representation of reality  
-*(actor, conductor, painter, tailor, chef, musician, architect)*.
-
----
-
-**6. HUMAN–BUSINESS (B).**  
-A newer type reflecting labor market demand  
-*(managers, brokers, dealers, auditors, entrepreneurs)*.
-""")
-        elif lang == "kz":
-            st.title("Кәсіби бағдар беру түрлері")
-            st.markdown("""
-**1. АДАМ–ТІРІ ТАБИҒАТ (Т).**  
-Өсімдіктермен, жануарлармен, микроорганизмдермен және олардың тіршілік жағдайларымен жұмыс  
-*(агроном, ветеринар, малшы, кинолог, фермер, геолог)*.
-
----
-
-**2. АДАМ–ТЕХНИКА ЖӘНЕ ӨЛІ ТАБИҒАТ (Т).**  
-Өлі және техникалық еңбек объектілерімен жұмыс  
-*(слесарь, механик, жүргізуші, инженер, ағаш ұстасы, дәнекерлеуші, физик, химик)*.
-
----
-
-**3. АДАМ–АДАМ (А).**  
-Қоғамдық жүйелермен, қауымдармен, әртүрлі жастағы адамдармен жұмыс  
-*(мұғалім, менеджер, дәрігер, тәрбиеші, сатушы, әлеуметтік қызметкер, массажист, психолог)*.
-
----
-
-**4. АДАМ–БЕЛГІЛІК ЖҮЙЕ (Б).**  
-Тілдермен, таңбалармен, формулалармен жұмыс  
-*(бухгалтер, бағдарламашы, экономист, аудармашы, кассир)*.
-
----
-
-**5. АДАМ–КӨРКЕМ БЕЙНЕ (К).**  
-Шығармашылық, өнер арқылы шындықты бейнелеу  
-*(әртіс, дирижер, суретші, тігінші, аспаз, музыкант, сәулетші)*.
-
----
-
-**6. АДАМ–БИЗНЕС (Б).**  
-Еңбек нарығының сұранысына байланысты жаңа бағыт  
-*(менеджерлер, брокерлер, дилерлер, аудиторлар, кәсіпкерлер)*.
-""")
-        
-# ------------------------
-# TAB 2 - Open questions
-with tabs[1]:
-    st.subheader({
-    "en": "Personalized career advice based on your answers",
-    "ru": "Персональные советы по выбору профессии на основе ваших ответов",
-    "kz": "Жауаптарыңызға негізделген жеке кәсіби кеңес"
-    }[lang])
-    st.markdown({
-    "en": "Answer the following questions about your interests, strengths, and dislikes. Based on your answers, the AI will provide personalized career advice.", 
-    "ru": "Ответьте на следующие вопросы о ваших интересах, сильных сторонах и нелюбимых занятиях. На основе ваших ответов ИИ предоставит персональные советы по выбору профессии.",
-    "kz": "Қызығушылықтарыңыз, күшті жақтарыңыз және ұнатпайтын істеріңіз туралы келесі сұрақтарға жауап беріңіз. Жауаптарыңызға негізделген ЖИ сізге жеке кәсіби кеңес береді."
-    }[lang])
-
-    with st.form("open_questions_form"):
-        user_answers = [st.text_input(q, key=f"answer_{i}") for i, q in enumerate(ld["questions"])]
-        submit_tab2 = st.form_submit_button(t["get_answer"])
-
-    if submit_tab2:
-        ai_response = get_ai_response(user_answers, lang=st.session_state["lang"])
-        st.session_state["tab2_ai_response"] = ai_response
-        st.session_state["tab2_qas"] = list(zip(ld["questions"], user_answers))  # сохраняем Q&A
-
-    if "tab2_ai_response" in st.session_state:
-        st.subheader(t["ai_response"])
-        st.write(st.session_state["tab2_ai_response"])
-
-        pdf_buffer = save_tab2_to_pdf(
-                st.session_state["tab2_qas"], 
-                st.session_state["tab2_ai_response"], 
-                lang
-            )
-        st.download_button(
-            label={"ru": "Сохранить в PDF", "en": "Save as PDF", "kz": "PDF сақтау"}[lang],
-            data=pdf_buffer,
-            file_name="open_questions_analysis.pdf",
-            mime="application/pdf"
-        )
-
-# ------------------------
-# TAB 3 - AI career (RAG only)
-with tabs[2]:
-    st.subheader(t["advisor"])
-    # мини-описание RAG
-    st.markdown({
-    "en": "Here you can ask follow-up questions based on the career advice you’ve already received. "
-          "The system uses RAG (Retrieval-Augmented Generation), which means it retrieves information "
-          "from a prepared knowledge base and then generates answers. This helps provide more focused, "
-          "reliable, and personalized guidance — not random information from the internet.",
-    "ru": "Здесь вы можете задать уточняющие вопросы на основе уже полученных советов. "
-          "Система использует RAG (Retrieval-Augmented Generation — генерация с дополнением поиска), "
-          "то есть извлекает информацию из подготовленной базы знаний и формирует ответ. "
-          "Это помогает давать более точные, надёжные и персонализированные рекомендации — "
-          "а не случайную информацию из интернета.",
-    "kz": "Мұнда сіз бұрын алған кеңестерге негізделген қосымша сұрақтар қоя аласыз. "
-          "Жүйе RAG (Retrieval-Augmented Generation — іздеумен толықтырылған генерация) тәсілін қолданады, "
-          "яғни дайын білім қорынан ақпарат алып, жауап құрастырады. "
-          "Бұл интернеттегі кездейсоқ ақпарат емес, нақтыланған әрі жекелендірілген нұсқауларды ұсынады."
-        }[lang])
-    with st.form("career_form"):
-        # --- Expander с рекомендациями ---
-        with st.expander({"ru": "Рекомендации по формулировке вопроса", 
-                          "en": "Recommendations for formulating your question",
-                          "kz": "Сұрақты құрастыру бойынша ұсыныстар"}[lang]):
-            if lang == "ru":
-                st.markdown("""
-                **Пример 1: Определение профильных предметов**  
-                Я хочу определиться с выбором двух профильных предметов из четырёх (физика, химия, биология, информатика).  
-                - Мне нравится делать: …  
-                - Мне не нравится делать: …  
-                - У меня хорошо получается: …  
-                - Мне сложно дается: …  
-                - Тип MBTI (не обязательно): …  
-                - Мотивационный тип (по Битяновой): …  
-                - Желаемая специальность: …  
-
-                **Пример 2: Определение специальности**  
-                Я хочу определиться с выбором специальности.  
-                - Я собираюсь выбрать (или уже выбрал) такие 2 профильных предмета из 4-х (физика, химия, биология, информатика): …  
-                - Мне нравится делать: …  
-                - Мне не нравится делать: …  
-                - У меня хорошо получается: …  
-                - Мне сложно дается: …  
-                - Тип MBTI (не обязательно): …  
-                - Мотивационный тип (по Битяновой): …  
-                
-                **Примечание:**
-                RAG отвечает на основе нашей проверенной внутренней базы знаний — это даёт персонализированные и согласованные рекомендации и лучше защищает вашу приватность.
-                Для самых свежих фактов (даты приёма, конкретные цены и т. п.) используйте официальные сайты.
-                """)
-            elif lang == "en":
-                st.markdown("""
-                **Example 1: Choosing school subjects**  
-                I want to decide on two profile subjects out of four (physics, chemistry, biology, computer science).  
-                - I enjoy doing: …  
-                - I don’t like doing: …  
-                - I am good at: …  
-                - I find it difficult to: …  
-                - MBTI type (optional): …  
-                - Motivational type (Bitianova): …  
-                - Desired major: …  
-
-                **Example 2: Choosing a major**  
-                I want to decide on my major.  
-                - I am going to choose (or have already chosen) two profile subjects out of four (physics, chemistry, biology, computer science): …  
-                - I enjoy doing: …  
-                - I don’t like doing: …  
-                - I am good at: …  
-                - I find it difficult to: …  
-                - MBTI type (optional): …  
-                - Motivational type (Bitianova): …  
-                            
-                **Note:**
-                The RAG model responds based on our vetted internal knowledge base — this provides personalized and consistent recommendations and better protects your privacy.
-                For the most up-to-date facts (admission dates, specific prices, etc.) please refer to official websites.
-                """)
-            else:  # kz
-                st.markdown("""
-                **1-мысал: Профильдік пәндерді таңдау**  
-                Мен төрт пәннің ішінен (физика, химия, биология, информатика) екі профильдік пәнді таңдағым келеді.  
-                - Маған ұнайтын істер: …  
-                - Маған ұнамайтын істер: …  
-                - Маған жақсы берілетіндер: …  
-                - Маған қиын берілетіндер: …  
-                - MBTI типі (міндетті емес): …  
-                - Мотивациялық тип (Битянова бойынша): …  
-                - Таңдағысы келетін мамандық: …  
-
-                **2-мысал: Мамандықты таңдау**  
-                Мен мамандық таңдағым келеді.  
-                - Мен төрт пәннің ішінен (физика, химия, биология, информатика) осындай 2 профильдік пәнді таңдадым (немесе таңдағалы жатырмын): …  
-                - Маған ұнайтын істер: …  
-                - Маған ұнамайтын істер: …  
-                - Маған жақсы берілетіндер: …  
-                - Маған қиын берілетіндер: …  
-                - MBTI типі (міндетті емес): …  
-                - Мотивациялық тип (Битянова бойынша): …  
-                            
-                **Ескерту:**
-                RAG біздің тексерілген ішкі білім базасына негізделген жауап береді — бұл жеке және үйлесімді ұсыныстар береді және сіздің құпиялылығыңызды жақсы қорғайды.
-                Ең соңғы деректер (қабылдау күндері, нақты бағалар және т.б.) үшін ресми сайттарға жүгініңіз.
-                """)
-
-        # --- Основное поле ввода ---
-        student_question = st.text_area(t["student_question"], height=100, key="student_q")
-
-        # --- Кнопка ---
-        submit_tab3 = st.form_submit_button(t["get_advice"])
-
-    if submit_tab3:
-        rag_answer = generate_rag_career_advice(student_question, embedder, annoy_index, texts, lang=st.session_state["lang"])
-        st.session_state["tab3_rag"] = rag_answer
-
-    if "tab3_rag" in st.session_state:
-        st.subheader(t["rag_model"])
-        st.write(st.session_state["tab3_rag"])
-        pdf_buffer = save_tab3_to_pdf(
-                st.session_state["student_q"], 
-                st.session_state["tab3_rag"], 
-                lang
-            )
-        st.download_button(
-            label={"ru": "Сохранить в PDF", "en": "Save as PDF", "kz": "PDF сақтау"}[lang],
-            data=pdf_buffer,
-            file_name="ai_response.pdf",
-            mime="application/pdf"
-        )
-
 
 
 

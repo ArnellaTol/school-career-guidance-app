@@ -849,7 +849,7 @@ with tabs[1]:
         }
 
         selected_checkboxes = {
-            col: st.checkbox(current_column_names[col]) for col in checkbox_columns
+            col: st.checkbox(current_column_names[col], key=f"checkbox_{col}") for col in checkbox_columns
         }
 
         available_grades = get_available_grades(current_grade_label)

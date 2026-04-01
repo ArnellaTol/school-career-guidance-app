@@ -781,6 +781,352 @@ embedder, annoy_index, texts = load_annoy_index(rag_data)
 st.header(t["header"])
 tabs = st.tabs([t["tab1"], t["tab2"], t["tab3"], t["tab4"]])
 
+
+
+# Типы личности и переводы
+type_labels = {
+    "A": {"ru": "Активист", "en": "Activist", "kz": "Белсенді"},
+    "K": {"ru": "Карьерист", "en": "Careerist", "kz": "Мансапқор"},
+    "Ip": {"ru": "Испытатель", "en": "Tester", "kz": "Тексеруші"},
+    "T": {"ru": "Творец", "en": "Creator", "kz": "Жасаушы"},
+    "P": {"ru": "Проектировщик", "en": "Designer", "kz": "Жоспарлаушы"},
+    "Il": {"ru": "Исследователь", "en": "Researcher", "kz": "Зерттеуші"},
+}
+
+
+questions = [
+    {
+        "ru": "Тебе нравится получать похвалу за хорошо сделанную работу?",
+        "en": "Do you like receiving praise for a job well done?",
+        "kz": "Жақсы орындалған жұмыс үшін мақтау алғанды ұнатасың ба?",
+        "codes": ["A"]
+    },
+    {
+        "ru": "Ты переживаешь, когда учитель ставит тебе в дневник плохую отметку?",
+        "en": "Do you worry when a teacher gives you a bad grade?",
+        "kz": "Мұғалім жаман баға қойған кезде уайымдайсың ба?",
+        "codes": ["A"]
+    },
+    {
+        "ru": "Ты переживаешь, когда обнаруживаешь ошибки в работе?",
+        "en": "Do you worry when you find mistakes in your work?",
+        "kz": "Жұмысыңнан қателер тапқанда уайымдайсың ба?",
+        "codes": ["A"]
+    },
+    {
+        "ru": "Часто бывает, что трудности в процессе работы выбивают тебя из колеи?",
+        "en": "Do difficulties during work often throw you off track?",
+        "kz": "Жұмыс барысында қиындықтар жиі сені жолдан тайдыра ма?",
+        "codes": ["A", "T"]
+    },
+    {
+        "ru": "Часто случается, что из-за неудачи ты оставляешь работу незаконченной?",
+        "en": "Do you often leave work unfinished because of failure?",
+        "kz": "Сәтсіздікке байланысты жұмысты жиі аяқтамай қалдырасың ба?",
+        "codes": ["A", "P"]
+    },
+    {
+        "ru": "Тебе нравится выполнять разные сложные поручения, важные для школы или класса?",
+        "en": "Do you like completing difficult tasks important for your school or class?",
+        "kz": "Мектеп немесе сынып үшін маңызды күрделі тапсырмаларды орындағанды ұнатасың ба?",
+        "codes": ["A"]
+    },
+    {
+        "ru": "Ты стремишься быть в компании «на первых ролях»?",
+        "en": "Do you try to take leading roles in a group?",
+        "kz": "Ұжымда жетекші рөл атқаруға тырысасың ба?",
+        "codes": ["A"]
+    },
+    {
+        "ru": "Можно ли сказать, что тебе легко общаться с людьми?",
+        "en": "Would you say it’s easy for you to communicate with people?",
+        "kz": "Адамдармен сөйлесу саған оңай деп айта аласың ба?",
+        "codes": ["A", "Il"]
+    },
+    {
+        "ru": "Тебе нравится быть лучше, чем другие, в какой-либо учебной ситуации?",
+        "en": "Do you like being better than others in a learning situation?",
+        "kz": "Оқу жағдайында өзгелерден жақсы болуды ұнатасың ба?",
+        "codes": ["K"]
+    },
+    {
+        "ru": "Как ты считаешь, при желании ты всегда сможешь получить хорошую оценку?",
+        "en": "Do you think you can always get a good grade if you try?",
+        "kz": "Қаласаң әрқашан жақсы баға ала аламын деп ойлайсың ба?",
+        "codes": ["K"]
+    },
+    {
+        "ru": "Ты чувствуешь обиду или огорчение, если тебя постигла неудача?",
+        "en": "Do you feel upset when you fail?",
+        "kz": "Сәтсіздікке ұшырағанда ренжисің бе?",
+        "codes": ["K"]
+    },
+    {
+        "ru": "Можно ли сказать, что трудности в работе тебя, как правило, не пугают?",
+        "en": "Can it be said that difficulties at work usually don’t scare you?",
+        "kz": "Жұмыстағы қиындықтар сені әдетте қорқытпайды деп айтуға бола ма?",
+        "codes": ["K"]
+    },
+    {
+        "ru": "Ты способен в случае неудачи быстро настроиться и продолжать работу?",
+        "en": "Are you able to quickly adjust and keep working after failure?",
+        "kz": "Сәтсіздіктен кейін тез бейімделіп, жұмысты жалғастыра аласың ба?",
+        "codes": ["K", "Il"]
+    },
+    {
+        "ru": "Как ты считаешь, можно ли поручить тебе ответственное задание?",
+        "en": "Do you think you can be trusted with a responsible task?",
+        "kz": "Саған жауапты тапсырманы сеніп тапсыруға болады деп ойлайсың ба?",
+        "codes": ["K"]
+    },
+    {
+        "ru": "Тебе легко внести оживление в большую компанию?",
+        "en": "Is it easy for you to liven up a large group?",
+        "kz": "Үлкен топты жандандыру саған оңай ма?",
+        "codes": ["K"]
+    },
+    {
+        "ru": "Можно ли про тебя сказать, что тебе больше нравится выполнять работу одному, чем вместе с другими?",
+        "en": "Would you say you prefer working alone rather than with others?",
+        "kz": "Басқалармен бірге істегеннен гөрі жалғыз жұмыс істеуді жақсы көресің бе?",
+        "codes": ["K"]
+    },
+    {
+        "ru": "Тебе важно, чтобы другие люди признавали твои успехи и способности?",
+        "en": "Is it important for you that others recognize your success and abilities?",
+        "kz": "Өз жетістіктерің мен қабілеттеріңді өзгелер мойындағаны сен үшін маңызды ма?",
+        "codes": ["Ip"]
+    },
+    {
+        "ru": "Можно ли про тебя сказать, что ты стараешься как можно быстрее исправить то, что у тебя не получилось?",
+        "en": "Do you try to quickly fix things when they don’t work out?",
+        "kz": "Саған бірдеңе шықпай қалса, оны тезірек түзетуге тырысасың ба?",
+        "codes": ["Ip"]
+    },
+    {
+        "ru": "В случае неудачи тебе важно как можно быстрее разобраться в ее причинах?",
+        "en": "When you fail, is it important for you to quickly understand the reasons?",
+        "kz": "Сәтсіздік болғанда, оның себебін тезірек түсіну сен үшін маңызды ма?",
+        "codes": ["Ip"]
+    },
+    {
+        "ru": "Часто ли, потерпев неудачу в деле, ты чувствуешь себя несправедливо обиженным?",
+        "en": "Do you often feel unfairly treated after a failure?",
+        "kz": "Сәтсіздіктен кейін жиі әділетсіз ренжіп қаласың ба?",
+        "codes": ["Ip", "T"]
+    },
+    {
+        "ru": "Тебе нравится браться за необычные, трудные задания?",
+        "en": "Do you like taking on unusual, difficult tasks?",
+        "kz": "Әдеттен тыс, қиын тапсырмаларды орындағанды ұнатасың ба?",
+        "codes": ["Ip"]
+    },
+    {
+        "ru": "Согласен ли ты с тем, что не ко всем порученным делам нужно относиться одинаково ответственно?",
+        "en": "Do you agree that not all tasks need the same level of responsibility?",
+        "kz": "Барлық тапсырмаларға бірдей жауапкершілікпен қарау қажет емес деп келісесің бе?",
+        "codes": ["Ip"]
+    },
+    {
+        "ru": "Для тебя важно, чтобы в споре победила твоя позиция?",
+        "en": "Is it important for you that your position wins in a dispute?",
+        "kz": "Дау кезінде сенің ұстанымың жеңгені сен үшін маңызды ма?",
+        "codes": ["Ip"]
+    },
+    {
+        "ru": "Тебе нравится соревноваться со своими сверстниками, участвовать в конкурсах?",
+        "en": "Do you like competing with peers and joining contests?",
+        "kz": "Өз құрдастарыңмен жарысқанды, байқауларға қатысқанды ұнатасың ба?",
+        "codes": ["Ip"]
+    },
+    {
+        "ru": "Ты гордишься, когда твои успехи признают окружающие люди?",
+        "en": "Do you feel proud when others recognize your achievements?",
+        "kz": "Өз жетістіктеріңді басқалар мойындағанда мақтанасың ба?",
+        "codes": ["T"]
+    },
+    {
+        "ru": "Можно ли про тебя сказать, что ты стремишься получать только хорошие отметки?",
+        "en": "Would you say you always aim for only good grades?",
+        "kz": "Әрқашан тек жақсы баға алуға тырысасың ба?",
+        "codes": ["T"]
+    },
+    {
+        "ru": "Можно про тебя сказать, что ты не любишь работы, которая выполняется по алгоритму или образцу?",
+        "en": "Would you say you dislike work done by a set pattern or algorithm?",
+        "kz": "Алгоритм немесе дайын үлгі бойынша жасалатын жұмысты ұнатпайсың ба?",
+        "codes": ["T"]
+    },
+    {
+        "ru": "Тебе нравятся необычные задания, где можно проявить воображение?",
+        "en": "Do you like unusual tasks where you can show imagination?",
+        "kz": "Қиялыңды көрсетуге болатын әдеттен тыс тапсырмаларды ұнатасың ба?",
+        "codes": ["T"]
+    },
+    {
+        "ru": "Тебе нравится работать самостоятельно, самому определяя, что и как делать?",
+        "en": "Do you like working independently, deciding what and how to do?",
+        "kz": "Не істеу және қалай істеуді өзің шешіп, тәуелсіз жұмыс істеуді ұнатасың ба?",
+        "codes": ["T"]
+    },
+    {
+        "ru": "Твое желание общаться с людьми часто зависит от настроения?",
+        "en": "Does your desire to talk to people often depend on your mood?",
+        "kz": "Адамдармен сөйлескің келуі жиі көңіл-күйіңе байланысты ма?",
+        "codes": ["T"]
+    },
+    {
+        "ru": "Можно ли сказать, что успехи и достижения – это нормально, естественно для тебя?",
+        "en": "Can it be said that success and achievements feel natural to you?",
+        "kz": "Жетістіктер мен табыстар сен үшін табиғи нәрсе деп айтуға бола ма?",
+        "codes": ["P"]
+    },
+    {
+        "ru": "Для тебя не имеет большого значения, как другие оценят твою работу?",
+        "en": "Does it matter little to you how others evaluate your work?",
+        "kz": "Басқалардың жұмысыңды қалай бағалайтыны сен үшін маңызды емес пе?",
+        "codes": ["P"]
+    },
+    {
+        "ru": "Могут ли трудности в работе заставить тебя переживать?",
+        "en": "Can difficulties at work make you worry?",
+        "kz": "Жұмыстағы қиындықтар сені уайымдатуы мүмкін бе?",
+        "codes": ["P"]
+    },
+    {
+        "ru": "Ты не любишь задания, в которых нет четкой логики или структуры?",
+        "en": "Do you dislike tasks without clear logic or structure?",
+        "kz": "Айқын логикасы немесе құрылымы жоқ тапсырмаларды ұнатпайсың ба?",
+        "codes": ["P"]
+    },
+    {
+        "ru": "Можно ли сказать, что не только ты отвечаешь за результат своей учебы?",
+        "en": "Would you say you are not the only one responsible for your study results?",
+        "kz": "Оқу нәтижелерің үшін тек өзің ғана емес, басқалар да жауапты деп айтуға бола ма?",
+        "codes": ["P"]
+    },
+    {
+        "ru": "Тебе не очень важно быть на виду, проявлять инициативу, влиять на мнение других?",
+        "en": "Is it not very important for you to be visible and influence others?",
+        "kz": "Көзге түсіп, бастама көтеріп, өзгелерге әсер ету сен үшін аса маңызды емес пе?",
+        "codes": ["P", "Il"]
+    },
+    {
+        "ru": "Тебе важно, чтобы были люди, которые разделяют твои интересы?",
+        "en": "Is it important for you to have people who share your interests?",
+        "kz": "Сенің қызығушылықтарыңды бөлісетін адамдардың болуы маңызды ма?",
+        "codes": ["P"]
+    },
+    {
+        "ru": "Важно ли тебе знать, почему ты получил ту или иную отметку?",
+        "en": "Is it important for you to know why you got a certain grade?",
+        "kz": "Неліктен белгілі бір баға алғаныңды білу сен үшін маңызды ма?",
+        "codes": ["Il"]
+    },
+    {
+        "ru": "Можно ли про тебя сказать, что тебе важно докопаться до сути?",
+        "en": "Would you say it’s important for you to get to the essence of things?",
+        "kz": "Істің мәніне жету сен үшін маңызды деп айтуға бола ма?",
+        "codes": ["Il"]
+    },
+    {
+        "ru": "Ты не отказываешься от работы только из-за трудностей?",
+        "en": "Do you avoid giving up work just because it’s difficult?",
+        "kz": "Тек қиындық болғаны үшін жұмыстан бас тартпайсың ба?",
+        "codes": ["Il"]
+    },
+    {
+        "ru": "Ты стараешься ответственно и точно выполнять все задания?",
+        "en": "Do you try to complete all tasks responsibly and accurately?",
+        "kz": "Барлық тапсырмаларды жауапкершілікпен әрі дәл орындауға тырысасың ба?",
+        "codes": ["Il"]
+    },
+    {
+        "ru": "В конфликте ты стараешься примирить спорящих?",
+        "en": "In a conflict, do you try to reconcile the arguing sides?",
+        "kz": "Қақтығыста дауласып жатқан адамдарды татуластыруға тырысасың ба?",
+        "codes": ["Il"]
+    }
+]
+
+
+with tabs[3]:
+    st.subheader({
+    "ru": "Тест на мотивационный тип личности",
+    "en": "Motivational Personality Type Test",
+    "kz": "Мотивациялық тұлға типі тесті"
+    }[lang])
+    st.markdown({
+    "ru": "Отметь галочкой утверждения, которые соответствуют твоему поведению. В конце ты увидишь, какой у тебя мотивационный тип личности по Битяновой.",
+    "en": "Check the statements that correspond to your behavior. At the end, you will see your motivational personality type according to Bitianova.",
+    "kz": "Өзіңнің мінез-құлқыңа сәйкес келетін мәлімдемелерді белгілеңіз. Соңында сіз Битяноваға сәйкес мотивациялық тұлға типіңізді көресіз."
+    }[lang])
+    answers = []
+    with st.form("quiz_form"):
+        for i, q in enumerate(questions, 1):
+            ans = st.checkbox(f"{i}. {q[lang]}", key=f"q{i}")
+            answers.append(ans)
+        submitted = st.form_submit_button({
+            "ru": "Показать результаты",
+            "en": "Show results",
+            "kz": "Нәтижелерді көрсету"
+        }[lang])
+    if submitted:
+        scores = {code: 0 for code in type_labels.keys()}
+        for ans, q in zip(answers, questions):
+            if ans:
+                for code in q["codes"]:
+                    scores[code] += 1
+
+        # Определяем итоговые типы
+        max_score = max(scores.values())
+        selected = [code for code, val in scores.items() if val >= 7] or [
+            code for code, val in scores.items() if val == max_score
+        ]
+
+        st.subheader({
+        "ru": "Ваши ведущие типы личности:",
+        "en": "Your leading personality types:",
+        "kz": "Сіздің жетекші тұлға типтеріңіз:"
+        }[lang])
+        for code in selected:
+            st.write("✅", type_labels[code][lang])
+
+        # Диаграмма
+        fig, ax = plt.subplots(figsize=(8, 5))  # увеличим размер графика
+        bars = ax.bar(
+        [type_labels[c][lang] for c in scores.keys()],
+        scores.values(),
+        width=0.5  # уменьшим ширину колонок, чтобы между ними было больше места
+        )
+
+        ax.set_ylabel({
+            "ru": "Баллы",
+            "en": "Scores",
+            "kz": "Ұпайлар"
+        }[lang])
+
+        # Увеличим отступы между метками оси X
+        ax.set_xticks(range(len(scores)))
+        ax.set_xticklabels(
+            [type_labels[c][lang] for c in scores.keys()],
+            rotation=20,   # чуть повернём, чтобы не налезали
+            ha="right"
+        )
+
+        st.pyplot(fig)
+
+        st.write({
+        "ru": "Теперь вы знаете свой мотивационный тип личности по Битяновой. Вернитесь на вкладку «Школьные оценки», чтобы увидеть, какие профессии вам подходят.",
+        "en": "Now you know your motivational personality type according to Bitianova. Go back to the 'School grades' tab to see which professions suit you.",
+        "kz": "Енді сіз Битяноваға сәйкес мотивациялық тұлға типіңізді білесіз. Сізге сәйкес келетін мамандықтарды көру үшін «Мектеп бағалары» қойындысына оралыңыз."
+        }[lang])
+
+
+
+
+
+
 # ------------------------
 # TAB 1 - Grades
 with tabs[0]:
@@ -1125,345 +1471,6 @@ with tabs[2]:
             mime="application/pdf"
         )
 
-
-# Типы личности и переводы
-type_labels = {
-    "A": {"ru": "Активист", "en": "Activist", "kz": "Белсенді"},
-    "K": {"ru": "Карьерист", "en": "Careerist", "kz": "Мансапқор"},
-    "Ip": {"ru": "Испытатель", "en": "Tester", "kz": "Тексеруші"},
-    "T": {"ru": "Творец", "en": "Creator", "kz": "Жасаушы"},
-    "P": {"ru": "Проектировщик", "en": "Designer", "kz": "Жоспарлаушы"},
-    "Il": {"ru": "Исследователь", "en": "Researcher", "kz": "Зерттеуші"},
-}
-
-
-questions = [
-    {
-        "ru": "Тебе нравится получать похвалу за хорошо сделанную работу?",
-        "en": "Do you like receiving praise for a job well done?",
-        "kz": "Жақсы орындалған жұмыс үшін мақтау алғанды ұнатасың ба?",
-        "codes": ["A"]
-    },
-    {
-        "ru": "Ты переживаешь, когда учитель ставит тебе в дневник плохую отметку?",
-        "en": "Do you worry when a teacher gives you a bad grade?",
-        "kz": "Мұғалім жаман баға қойған кезде уайымдайсың ба?",
-        "codes": ["A"]
-    },
-    {
-        "ru": "Ты переживаешь, когда обнаруживаешь ошибки в работе?",
-        "en": "Do you worry when you find mistakes in your work?",
-        "kz": "Жұмысыңнан қателер тапқанда уайымдайсың ба?",
-        "codes": ["A"]
-    },
-    {
-        "ru": "Часто бывает, что трудности в процессе работы выбивают тебя из колеи?",
-        "en": "Do difficulties during work often throw you off track?",
-        "kz": "Жұмыс барысында қиындықтар жиі сені жолдан тайдыра ма?",
-        "codes": ["A", "T"]
-    },
-    {
-        "ru": "Часто случается, что из-за неудачи ты оставляешь работу незаконченной?",
-        "en": "Do you often leave work unfinished because of failure?",
-        "kz": "Сәтсіздікке байланысты жұмысты жиі аяқтамай қалдырасың ба?",
-        "codes": ["A", "P"]
-    },
-    {
-        "ru": "Тебе нравится выполнять разные сложные поручения, важные для школы или класса?",
-        "en": "Do you like completing difficult tasks important for your school or class?",
-        "kz": "Мектеп немесе сынып үшін маңызды күрделі тапсырмаларды орындағанды ұнатасың ба?",
-        "codes": ["A"]
-    },
-    {
-        "ru": "Ты стремишься быть в компании «на первых ролях»?",
-        "en": "Do you try to take leading roles in a group?",
-        "kz": "Ұжымда жетекші рөл атқаруға тырысасың ба?",
-        "codes": ["A"]
-    },
-    {
-        "ru": "Можно ли сказать, что тебе легко общаться с людьми?",
-        "en": "Would you say it’s easy for you to communicate with people?",
-        "kz": "Адамдармен сөйлесу саған оңай деп айта аласың ба?",
-        "codes": ["A", "Il"]
-    },
-    {
-        "ru": "Тебе нравится быть лучше, чем другие, в какой-либо учебной ситуации?",
-        "en": "Do you like being better than others in a learning situation?",
-        "kz": "Оқу жағдайында өзгелерден жақсы болуды ұнатасың ба?",
-        "codes": ["K"]
-    },
-    {
-        "ru": "Как ты считаешь, при желании ты всегда сможешь получить хорошую оценку?",
-        "en": "Do you think you can always get a good grade if you try?",
-        "kz": "Қаласаң әрқашан жақсы баға ала аламын деп ойлайсың ба?",
-        "codes": ["K"]
-    },
-    {
-        "ru": "Ты чувствуешь обиду или огорчение, если тебя постигла неудача?",
-        "en": "Do you feel upset when you fail?",
-        "kz": "Сәтсіздікке ұшырағанда ренжисің бе?",
-        "codes": ["K"]
-    },
-    {
-        "ru": "Можно ли сказать, что трудности в работе тебя, как правило, не пугают?",
-        "en": "Can it be said that difficulties at work usually don’t scare you?",
-        "kz": "Жұмыстағы қиындықтар сені әдетте қорқытпайды деп айтуға бола ма?",
-        "codes": ["K"]
-    },
-    {
-        "ru": "Ты способен в случае неудачи быстро настроиться и продолжать работу?",
-        "en": "Are you able to quickly adjust and keep working after failure?",
-        "kz": "Сәтсіздіктен кейін тез бейімделіп, жұмысты жалғастыра аласың ба?",
-        "codes": ["K", "Il"]
-    },
-    {
-        "ru": "Как ты считаешь, можно ли поручить тебе ответственное задание?",
-        "en": "Do you think you can be trusted with a responsible task?",
-        "kz": "Саған жауапты тапсырманы сеніп тапсыруға болады деп ойлайсың ба?",
-        "codes": ["K"]
-    },
-    {
-        "ru": "Тебе легко внести оживление в большую компанию?",
-        "en": "Is it easy for you to liven up a large group?",
-        "kz": "Үлкен топты жандандыру саған оңай ма?",
-        "codes": ["K"]
-    },
-    {
-        "ru": "Можно ли про тебя сказать, что тебе больше нравится выполнять работу одному, чем вместе с другими?",
-        "en": "Would you say you prefer working alone rather than with others?",
-        "kz": "Басқалармен бірге істегеннен гөрі жалғыз жұмыс істеуді жақсы көресің бе?",
-        "codes": ["K"]
-    },
-    {
-        "ru": "Тебе важно, чтобы другие люди признавали твои успехи и способности?",
-        "en": "Is it important for you that others recognize your success and abilities?",
-        "kz": "Өз жетістіктерің мен қабілеттеріңді өзгелер мойындағаны сен үшін маңызды ма?",
-        "codes": ["Ip"]
-    },
-    {
-        "ru": "Можно ли про тебя сказать, что ты стараешься как можно быстрее исправить то, что у тебя не получилось?",
-        "en": "Do you try to quickly fix things when they don’t work out?",
-        "kz": "Саған бірдеңе шықпай қалса, оны тезірек түзетуге тырысасың ба?",
-        "codes": ["Ip"]
-    },
-    {
-        "ru": "В случае неудачи тебе важно как можно быстрее разобраться в ее причинах?",
-        "en": "When you fail, is it important for you to quickly understand the reasons?",
-        "kz": "Сәтсіздік болғанда, оның себебін тезірек түсіну сен үшін маңызды ма?",
-        "codes": ["Ip"]
-    },
-    {
-        "ru": "Часто ли, потерпев неудачу в деле, ты чувствуешь себя несправедливо обиженным?",
-        "en": "Do you often feel unfairly treated after a failure?",
-        "kz": "Сәтсіздіктен кейін жиі әділетсіз ренжіп қаласың ба?",
-        "codes": ["Ip", "T"]
-    },
-    {
-        "ru": "Тебе нравится браться за необычные, трудные задания?",
-        "en": "Do you like taking on unusual, difficult tasks?",
-        "kz": "Әдеттен тыс, қиын тапсырмаларды орындағанды ұнатасың ба?",
-        "codes": ["Ip"]
-    },
-    {
-        "ru": "Согласен ли ты с тем, что не ко всем порученным делам нужно относиться одинаково ответственно?",
-        "en": "Do you agree that not all tasks need the same level of responsibility?",
-        "kz": "Барлық тапсырмаларға бірдей жауапкершілікпен қарау қажет емес деп келісесің бе?",
-        "codes": ["Ip"]
-    },
-    {
-        "ru": "Для тебя важно, чтобы в споре победила твоя позиция?",
-        "en": "Is it important for you that your position wins in a dispute?",
-        "kz": "Дау кезінде сенің ұстанымың жеңгені сен үшін маңызды ма?",
-        "codes": ["Ip"]
-    },
-    {
-        "ru": "Тебе нравится соревноваться со своими сверстниками, участвовать в конкурсах?",
-        "en": "Do you like competing with peers and joining contests?",
-        "kz": "Өз құрдастарыңмен жарысқанды, байқауларға қатысқанды ұнатасың ба?",
-        "codes": ["Ip"]
-    },
-    {
-        "ru": "Ты гордишься, когда твои успехи признают окружающие люди?",
-        "en": "Do you feel proud when others recognize your achievements?",
-        "kz": "Өз жетістіктеріңді басқалар мойындағанда мақтанасың ба?",
-        "codes": ["T"]
-    },
-    {
-        "ru": "Можно ли про тебя сказать, что ты стремишься получать только хорошие отметки?",
-        "en": "Would you say you always aim for only good grades?",
-        "kz": "Әрқашан тек жақсы баға алуға тырысасың ба?",
-        "codes": ["T"]
-    },
-    {
-        "ru": "Можно про тебя сказать, что ты не любишь работы, которая выполняется по алгоритму или образцу?",
-        "en": "Would you say you dislike work done by a set pattern or algorithm?",
-        "kz": "Алгоритм немесе дайын үлгі бойынша жасалатын жұмысты ұнатпайсың ба?",
-        "codes": ["T"]
-    },
-    {
-        "ru": "Тебе нравятся необычные задания, где можно проявить воображение?",
-        "en": "Do you like unusual tasks where you can show imagination?",
-        "kz": "Қиялыңды көрсетуге болатын әдеттен тыс тапсырмаларды ұнатасың ба?",
-        "codes": ["T"]
-    },
-    {
-        "ru": "Тебе нравится работать самостоятельно, самому определяя, что и как делать?",
-        "en": "Do you like working independently, deciding what and how to do?",
-        "kz": "Не істеу және қалай істеуді өзің шешіп, тәуелсіз жұмыс істеуді ұнатасың ба?",
-        "codes": ["T"]
-    },
-    {
-        "ru": "Твое желание общаться с людьми часто зависит от настроения?",
-        "en": "Does your desire to talk to people often depend on your mood?",
-        "kz": "Адамдармен сөйлескің келуі жиі көңіл-күйіңе байланысты ма?",
-        "codes": ["T"]
-    },
-    {
-        "ru": "Можно ли сказать, что успехи и достижения – это нормально, естественно для тебя?",
-        "en": "Can it be said that success and achievements feel natural to you?",
-        "kz": "Жетістіктер мен табыстар сен үшін табиғи нәрсе деп айтуға бола ма?",
-        "codes": ["P"]
-    },
-    {
-        "ru": "Для тебя не имеет большого значения, как другие оценят твою работу?",
-        "en": "Does it matter little to you how others evaluate your work?",
-        "kz": "Басқалардың жұмысыңды қалай бағалайтыны сен үшін маңызды емес пе?",
-        "codes": ["P"]
-    },
-    {
-        "ru": "Могут ли трудности в работе заставить тебя переживать?",
-        "en": "Can difficulties at work make you worry?",
-        "kz": "Жұмыстағы қиындықтар сені уайымдатуы мүмкін бе?",
-        "codes": ["P"]
-    },
-    {
-        "ru": "Ты не любишь задания, в которых нет четкой логики или структуры?",
-        "en": "Do you dislike tasks without clear logic or structure?",
-        "kz": "Айқын логикасы немесе құрылымы жоқ тапсырмаларды ұнатпайсың ба?",
-        "codes": ["P"]
-    },
-    {
-        "ru": "Можно ли сказать, что не только ты отвечаешь за результат своей учебы?",
-        "en": "Would you say you are not the only one responsible for your study results?",
-        "kz": "Оқу нәтижелерің үшін тек өзің ғана емес, басқалар да жауапты деп айтуға бола ма?",
-        "codes": ["P"]
-    },
-    {
-        "ru": "Тебе не очень важно быть на виду, проявлять инициативу, влиять на мнение других?",
-        "en": "Is it not very important for you to be visible and influence others?",
-        "kz": "Көзге түсіп, бастама көтеріп, өзгелерге әсер ету сен үшін аса маңызды емес пе?",
-        "codes": ["P", "Il"]
-    },
-    {
-        "ru": "Тебе важно, чтобы были люди, которые разделяют твои интересы?",
-        "en": "Is it important for you to have people who share your interests?",
-        "kz": "Сенің қызығушылықтарыңды бөлісетін адамдардың болуы маңызды ма?",
-        "codes": ["P"]
-    },
-    {
-        "ru": "Важно ли тебе знать, почему ты получил ту или иную отметку?",
-        "en": "Is it important for you to know why you got a certain grade?",
-        "kz": "Неліктен белгілі бір баға алғаныңды білу сен үшін маңызды ма?",
-        "codes": ["Il"]
-    },
-    {
-        "ru": "Можно ли про тебя сказать, что тебе важно докопаться до сути?",
-        "en": "Would you say it’s important for you to get to the essence of things?",
-        "kz": "Істің мәніне жету сен үшін маңызды деп айтуға бола ма?",
-        "codes": ["Il"]
-    },
-    {
-        "ru": "Ты не отказываешься от работы только из-за трудностей?",
-        "en": "Do you avoid giving up work just because it’s difficult?",
-        "kz": "Тек қиындық болғаны үшін жұмыстан бас тартпайсың ба?",
-        "codes": ["Il"]
-    },
-    {
-        "ru": "Ты стараешься ответственно и точно выполнять все задания?",
-        "en": "Do you try to complete all tasks responsibly and accurately?",
-        "kz": "Барлық тапсырмаларды жауапкершілікпен әрі дәл орындауға тырысасың ба?",
-        "codes": ["Il"]
-    },
-    {
-        "ru": "В конфликте ты стараешься примирить спорящих?",
-        "en": "In a conflict, do you try to reconcile the arguing sides?",
-        "kz": "Қақтығыста дауласып жатқан адамдарды татуластыруға тырысасың ба?",
-        "codes": ["Il"]
-    }
-]
-
-
-with tabs[3]:
-    st.subheader({
-    "ru": "Тест на мотивационный тип личности",
-    "en": "Motivational Personality Type Test",
-    "kz": "Мотивациялық тұлға типі тесті"
-    }[lang])
-    st.markdown({
-    "ru": "Отметь галочкой утверждения, которые соответствуют твоему поведению. В конце ты увидишь, какой у тебя мотивационный тип личности по Битяновой.",
-    "en": "Check the statements that correspond to your behavior. At the end, you will see your motivational personality type according to Bitianova.",
-    "kz": "Өзіңнің мінез-құлқыңа сәйкес келетін мәлімдемелерді белгілеңіз. Соңында сіз Битяноваға сәйкес мотивациялық тұлға типіңізді көресіз."
-    }[lang])
-    answers = []
-    with st.form("quiz_form"):
-        for i, q in enumerate(questions, 1):
-            ans = st.checkbox(f"{i}. {q[lang]}", key=f"q{i}")
-            answers.append(ans)
-        submitted = st.form_submit_button({
-            "ru": "Показать результаты",
-            "en": "Show results",
-            "kz": "Нәтижелерді көрсету"
-        }[lang])
-    if submitted:
-        scores = {code: 0 for code in type_labels.keys()}
-        for ans, q in zip(answers, questions):
-            if ans:
-                for code in q["codes"]:
-                    scores[code] += 1
-
-        # Определяем итоговые типы
-        max_score = max(scores.values())
-        selected = [code for code, val in scores.items() if val >= 7] or [
-            code for code, val in scores.items() if val == max_score
-        ]
-
-        st.subheader({
-        "ru": "Ваши ведущие типы личности:",
-        "en": "Your leading personality types:",
-        "kz": "Сіздің жетекші тұлға типтеріңіз:"
-        }[lang])
-        for code in selected:
-            st.write("✅", type_labels[code][lang])
-
-        # Диаграмма
-        fig, ax = plt.subplots(figsize=(8, 5))  # увеличим размер графика
-        bars = ax.bar(
-        [type_labels[c][lang] for c in scores.keys()],
-        scores.values(),
-        width=0.5  # уменьшим ширину колонок, чтобы между ними было больше места
-        )
-
-        ax.set_ylabel({
-            "ru": "Баллы",
-            "en": "Scores",
-            "kz": "Ұпайлар"
-        }[lang])
-
-        # Увеличим отступы между метками оси X
-        ax.set_xticks(range(len(scores)))
-        ax.set_xticklabels(
-            [type_labels[c][lang] for c in scores.keys()],
-            rotation=20,   # чуть повернём, чтобы не налезали
-            ha="right"
-        )
-
-        st.pyplot(fig)
-
-        st.write({
-        "ru": "Теперь вы знаете свой мотивационный тип личности по Битяновой. Вернитесь на вкладку «Школьные оценки», чтобы увидеть, какие профессии вам подходят.",
-        "en": "Now you know your motivational personality type according to Bitianova. Go back to the 'School grades' tab to see which professions suit you.",
-        "kz": "Енді сіз Битяноваға сәйкес мотивациялық тұлға типіңізді білесіз. Сізге сәйкес келетін мамандықтарды көру үшін «Мектеп бағалары» қойындысына оралыңыз."
-        }[lang])
 
 
 

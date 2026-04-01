@@ -845,10 +845,6 @@ with tabs[1]:
         st.write(f"{t['go_to_tab']}")
 
         selected_checkboxes = {
-            col: st.checkbox(current_column_names[col]) for col in checkbox_columns
-        }
-
-        selected_checkboxes = {
             col: st.checkbox(current_column_names[col], key=f"checkbox_{col}") for col in checkbox_columns
         }
 

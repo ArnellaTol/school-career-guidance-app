@@ -829,16 +829,24 @@ with tabs[1]:
     "ru": "Укажите свои оценки за 7-10 классы и выберите свой мотивационный тип.",
     "kz": "7-10 сыныптардағы бағаларыңызды енгізіп, мотивациялық типіңізді таңдаңыз."
     }[lang])
+
+    if "current_grade_label" not in st.session_state:
+        st.session_state["current_grade_label"] = "7"
+
+    current_grade_label = st.selectbox(
+        t.get('current_grade_label', ld.get('current_grade_label', 'В каком вы сейчас классе?')),
+        options=["7", "8", "9", "10-12"],
+        index=["7", "8", "9", "10-12"].index(st.session_state["current_grade_label"]),
+        key="current_grade_label"
+    )
+
     with st.form("grades_form"):
         st.write(f"**{t['choose_type']}**")
         st.write(f"{t['go_to_tab']}")
 
-        current_grade_label = st.selectbox(
-            t.get('current_grade_label', ld.get('current_grade_label', 'В каком вы сейчас классе?')),
-            options=["7", "8", "9", "10-12"],
-            label_visibility="visible",
-            key="current_grade_label"
-        )
+        selected_checkboxes = {
+            col: st.checkbox(current_column_names[col]) for col in checkbox_columns
+        }
 
         selected_checkboxes = {
             col: st.checkbox(current_column_names[col]) for col in checkbox_columns
@@ -856,16 +864,10 @@ with tabs[1]:
             )
 
         # Автозаполнение недоступных классов
-        for grade in range(7, 11):
-            if grade not in available_grades:
-                prev_grade = grade - 1
-                if prev_grade < 7:
-                    continue
-                if prev_grade not in available_grades and prev_grade >= 7:
-                    # если предыдущий класс уже автозаполнен, он уже должен быть в input_values
-                    pass
-                autofilled = autofill_grades(prev_grade, grade, input_values, current_column_names)
-                input_values.update(autofilled)
+        last_manual = available_grades[-1] if available_grades else 7
+        for grade in range(last_manual + 1, 11):
+            autofilled = autofill_grades(grade - 1, grade, input_values, current_column_names)
+            input_values.update(autofilled)
 
         submit_tab1 = st.form_submit_button(t["get_result"])
 

@@ -585,21 +585,27 @@ styles = getSampleStyleSheet()
 
 def _register_unicode_font():
     """
-    Попытаться зарегистрировать DejaVuSans (путь типичный для Linux).
-    Если не получилось — вернём None и оставим standard font.
+    Попытаться зарегистрировать шрифт, поддерживающий Unicode (кириллица, казахский).
+    Сначала проверяем системные шрифты на macOS, затем Linux.
     """
-    possible_paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/local/share/fonts/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+    possible_fonts = [
+        # macOS шрифты
+        ('Arial', '/Library/Fonts/Arial.ttf'),
+        ('Arial Unicode MS', '/Library/Fonts/Microsoft/Arial Unicode.ttf'),
+        ('Times New Roman', '/Library/Fonts/Times New Roman.ttf'),
+        ('DejaVuSans', '/Library/Fonts/DejaVuSans.ttf'),
+        # Linux шрифты
+        ('DejaVuSans', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'),
+        ('DejaVuSans', '/usr/local/share/fonts/DejaVuSans.ttf'),
+        ('FreeSans', '/usr/share/fonts/truetype/freefont/FreeSans.ttf'),
     ]
-    for p in possible_paths:
-        try:
-            if os.path.exists(p):
-                pdfmetrics.registerFont(TTFont('DejaVuSans', p))
-                return 'DejaVuSans'
-        except Exception:
-            continue
+    for name, path in possible_fonts:
+        if os.path.exists(path):
+            try:
+                pdfmetrics.registerFont(TTFont(name, path))
+                return name
+            except Exception:
+                continue
     return None
 
 # регистрируем (один раз)

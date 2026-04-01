@@ -586,10 +586,16 @@ styles = getSampleStyleSheet()
 def _register_unicode_font():
     """
     Попытаться зарегистрировать шрифт, поддерживающий Unicode (кириллица, казахский).
-    Сначала проверяем системные шрифты на macOS, затем Linux.
+    Сначала проверяем шрифты в проекте, затем пользовательские, затем системные.
     """
     possible_fonts = [
-        # macOS шрифты
+        # Шрифты в проекте
+        ('NotoSans', './fonts/NotoSans-Regular.ttf'),
+        # Пользовательские шрифты
+        ('NotoSans', os.path.expanduser('~/Library/Fonts/NotoSans-Regular.ttf')),
+        # macOS системные шрифты
+        ('LucidaGrande', '/System/Library/Fonts/LucidaGrande.ttc'),
+        ('ArialHB', '/System/Library/Fonts/ArialHB.ttc'),
         ('Arial', '/Library/Fonts/Arial.ttf'),
         ('Arial Unicode MS', '/Library/Fonts/Microsoft/Arial Unicode.ttf'),
         ('Times New Roman', '/Library/Fonts/Times New Roman.ttf'),
